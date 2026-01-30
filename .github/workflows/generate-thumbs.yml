@@ -9,10 +9,11 @@ on:
 
 jobs:
   thumbs:
-    # 双保险：避免 actions 自己提交缩略图后触发循环
+    # 防止 actions 自己提交缩略图后触发无限循环
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
+    # 允许工作流把生成的缩略图提交回仓库
     permissions:
       contents: write
 
@@ -31,11 +32,19 @@ jobs:
           set -euo pipefail
           mkdir -p assets/thumbs
 
+          # 兼容 ImageMagick 6/7：优先 magick，没有就用 convert
+          IM_CMD="magick"
+          if ! command -v magick >/dev/null 2>&1; then
+            IM_CMD="convert"
+          fi
+          echo "Using ImageMagick command: $IM_CMD"
+          $IM_CMD -version || true
+
           # 遍历 assets/full 下所有常见图片（支持子文件夹）
           find assets/full -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print0 \
           | while IFS= read -r -d '' f; do
-              rel="${f#assets/full/}"                 # 相对路径，如 2026/a.jpg
-              out="assets/thumbs/$rel"               # 缩略图对应路径
+              rel="${f#assets/full/}"        # 相对路径，如 2026/a.jpg
+              out="assets/thumbs/$rel"      # 缩略图对应路径
               mkdir -p "$(dirname "$out")"
 
               ext="${f##*.}"
@@ -47,13 +56,13 @@ jobs:
               # -strip：去除EXIF/定位等元数据（只作用于缩略图）
               # -resize '800x800>'：长边最多800，且只缩小不放大
               if [[ "$ext_lc" == "jpg" || "$ext_lc" == "jpeg" ]]; then
-                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
               elif [[ "$ext_lc" == "png" ]]; then
-                magick "$f" -auto-orient -strip -resize '800x800>' -define png:compression-level=9 "$out"
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -define png:compression-level=9 "$out"
               elif [[ "$ext_lc" == "webp" ]]; then
-                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
               else
-                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
               fi
             done
 
@@ -71,6 +80,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # 如果 thumbs 里有变化，就提交并推送
           if [[ -n "$(git status --porcelain assets/thumbs)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
