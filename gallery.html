@@ -1,45 +1,78 @@
 <!doctype html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>画廊</title>
+
   <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightbox2@2.11.4/dist/css/lightbox.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightbox2@2.11.4/dist/css/lightbox.min.css" />
 </head>
+
 <body>
-<header>
-  <nav>
-    <a href="index.html">首页</a>
-    <a href="gallery.html">画廊</a>
-    <a href="upload.html">投稿/上传</a>
-  </nav>
-</header>
+  <header>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="gallery.html">画廊</a>
+      <a href="upload.html">投稿/上传</a>
+    </nav>
+  </header>
 
-<main>
-  <h1>画廊</h1>
-  <p>（你上传照片后，我会教你把它们加到下面的网格里）</p>
+  <main>
+    <h1>画廊</h1>
+    <p>你只需要把高清图上传到 <code>assets/full/</code>，缩略图和画廊会自动更新。</p>
 
-<div class="grid">
+    <div id="gallery" class="grid"></div>
 
-  <a href="assets/full/photo1.jpg" data-lightbox="gallery" data-title="36338275c8d69e7b58225156332f4d3c.jpg">
-    <img src="assets/thumbs/photo1.jpg" loading="lazy" alt="36338275c8d69e7b58225156332f4d3c.jpg">
-  </a>
+    <p id="gallery-status" style="color:#666;"></p>
+  </main>
 
-  <a href="assets/full/photo2.jpg" data-lightbox="gallery" data-title="d4d2c963c1b41bc49d6c8f6e66a59b28.jpg">
-    <img src="assets/thumbs/photo2.jpg" loading="lazy" alt="d4d2c963c1b41bc49d6c8f6e66a59b28.jpg">
-  </a>
+  <footer class="footer">
+    © 你的名字
+  </footer>
 
-  <a href="assets/full/你的文件名.jpg" data-lightbox="gallery" data-title="你的文件名">
-  <img src="assets/thumbs/你的文件名.jpg" loading="lazy" alt="你的文件名">
-</a>
+  <script src="https://cdn.jsdelivr.net/npm/lightbox2@2.11.4/dist/js/lightbox.min.js"></script>
+  <script>
+    async function loadGallery() {
+      const status = document.getElementById('gallery-status');
+      const container = document.getElementById('gallery');
+      status.textContent = '正在加载...';
 
+      const res = await fetch('assets/manifest.json', { cache: 'no-store' });
+      if (!res.ok) {
+        status.textContent = '画廊清单不存在：请确认 Actions 已生成 assets/manifest.json。';
+        return;
+      }
 
-</div>
+      const files = await res.json(); // ["a.jpg","b.png",...]
+      if (!Array.isArray(files) || files.length === 0) {
+        status.textContent = '还没有图片：请把高清图上传到 assets/full/。';
+        return;
+      }
 
-</main>
+      container.innerHTML = '';
+      for (const name of files) {
+        const a = document.createElement('a');
+        a.href = `assets/full/${name}`;
+        a.setAttribute('data-lightbox', 'gallery');
+        a.setAttribute('data-title', name);
 
-<script src="https://cdn.jsdelivr.net/npm/lightbox2@2.11.4/dist/js/lightbox.min.js"></script>
-<div class="footer">© 你的名字</div>
+        const img = document.createElement('img');
+        img.src = `assets/thumbs/${name}`;
+        img.loading = 'lazy';
+        img.alt = name;
+
+        a.appendChild(img);
+        container.appendChild(a);
+      }
+
+      status.textContent = `已加载 ${files.length} 张图片`;
+    }
+
+    loadGallery().catch(err => {
+      console.error(err);
+      document.getElementById('gallery-status').textContent = '加载失败：请检查 manifest.json 或图片路径。';
+    });
+  </script>
 </body>
 </html>
