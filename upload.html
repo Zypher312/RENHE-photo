@@ -1,38 +1,68 @@
 <!doctype html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>投稿/上传</title>
+
   <link rel="stylesheet" href="css/style.css" />
 </head>
+
 <body>
-<header>
-  <nav>
-    <a href="index.html">首页</a>
-    <a href="gallery.html">画廊</a>
-    <a href="upload.html">投稿/上传</a>
-  </nav>
-</header>
+  <header>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="gallery.html">画廊</a>
+      <a href="upload.html">投稿/上传</a>
+    </nav>
+  </header>
 
-<main>
-  <h1>投稿/上传</h1>
-  <p>欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
+  <main>
+    <h1>投稿/上传</h1>
+    <p>欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
 
-  <h3>投稿规则</h3>
-  <ul>
-    <li>仅接受你拥有版权或已获授权的照片。</li>
-    <li>建议 JPG/PNG，单张不超过 20MB。</li>
-    <li>发布前我可能会压缩尺寸并清理 EXIF。</li>
-  </ul>
+    <h2>投稿规则</h2>
+    <ul>
+      <li>仅接受你拥有版权或已获授权的照片。</li>
+      <li>建议 JPG/PNG/WebP，单张不超过 20MB。</li>
+      <li>发布前我可能会压缩尺寸并清理 EXIF。</li>
+    </ul>
 
-  <p>
-    <a href="https://forms.gle/H4FY76AuHvWedWKQ6" target="_blank" rel="noopener">
-      打开上传表单 →
-    </a>
-  </p>
-</main>
+    <!-- 入口 1：Google 表单（如果你未来要用） -->
+    <p style="margin-top: 18px;">
+      <a href="https://forms.gle/H4FY76AuHvWedWKQ6" target="_blank" rel="noopener">
+        打开上传表单 →
+      </a>
+    </p>
 
-<div class="footer">© 你的名字</div>
+    <!-- 入口 2：免 Google 账号（Dropbox/OneDrive File Request） -->
+    <p style="margin-top: 10px;">
+      <a
+        href="DROPBOX_OR_ONEDRIVE_LINK_HERE"
+        target="_blank"
+        rel="noopener"
+      >
+        如果没有google账号请点击此链接上传 →
+      </a>
+    </p>
+
+    <hr style="margin: 24px 0; opacity: .35;" />
+
+    <h2>建议你填写这些信息（可写在文件夹/文件名/备注里）</h2>
+    <ul>
+      <li><b>图片上传者</b>：你的名字 / 昵称</li>
+      <li><b>拍摄时间</b>：YYYY-MM-DD</li>
+      <li><b>涉及人物</b>：例如 A / B / 无</li>
+      <li><b>内容类型</b>：比赛实况 / 训练物料 / 机场路透 / 其他</li>
+    </ul>
+
+    <p style="color:#666; margin-top: 10px;">
+      小提示：你可以用文件名格式，例如：<code>2026-01-30_上传者_内容类型_人物.jpg</code>
+    </p>
+  </main>
+
+  <footer class="footer">
+    © 你的名字
+  </footer>
 </body>
 </html>
