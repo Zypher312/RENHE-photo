@@ -1,9 +1,133 @@
+name: Generate thumbnails + manifest
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "assets/full/**"
+      - ".github/workflows/generate-thumbs.yml"
+
+jobs:
+  thumbs:
+    # 防止 actions 自己提交缩略图/manifest 后触发循环
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+          command -v magick || true
+          command -v convert || true
+
+      - name: Generate thumbnails (800px long edge) + strip EXIF
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p assets/thumbs
+
+          # 兼容 ImageMagick 6/7：优先 magick，没有就用 convert
+          IM_CMD="magick"
+          if ! command -v magick >/dev/null 2>&1; then
+            IM_CMD="convert"
+          fi
+          echo "Using ImageMagick command: $IM_CMD"
+          $IM_CMD -version || true
+
+          # 生成/更新缩略图
+          find assets/full -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print0 \
+          | while IFS= read -r -d '' f; do
+              rel="${f#assets/full/}"          # e.g. 2026/a.jpg
+              out="assets/thumbs/$rel"        # e.g. assets/thumbs/2026/a.jpg
+              mkdir -p "$(dirname "$out")"
+
+              ext="${f##*.}"
+              ext_lc="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+
+              echo "thumb: $f -> $out"
+
+              # -auto-orient: 按拍摄方向纠正
+              # -strip: 去除 EXIF/定位等元数据（只对缩略图）
+              # -resize '800x800>': 长边<=800，只缩小不放大
+              if [[ "$ext_lc" == "jpg" || "$ext_lc" == "jpeg" ]]; then
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              elif [[ "$ext_lc" == "png" ]]; then
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -define png:compression-level=9 "$out"
+              elif [[ "$ext_lc" == "webp" ]]; then
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              else
+                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              fi
+            done
+
+          # 清理孤儿缩略图：full 删除了图，thumbs 也跟着删（保留 .gitkeep）
+          if [[ -d "assets/thumbs" ]]; then
+            find assets/thumbs -type f ! -name '.gitkeep' -print0 \
+            | while IFS= read -r -d '' t; do
+                rel="${t#assets/thumbs/}"
+                if [[ ! -f "assets/full/$rel" ]]; then
+                  echo "remove orphan thumb: $t"
+                  rm -f "$t"
+                fi
+              done
+          fi
+
+      - name: Generate assets/manifest.json
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p assets
+
+          # 生成 manifest.json：包含 full/thumb 路径，以及标题（默认取文件名，不含扩展名）
+          # 只收录 assets/full 下的常见图片类型
+          python3 - << 'PY'
+          import json, os, pathlib, re
+
+          FULL_DIR = pathlib.Path("assets/full")
+          THUMB_DIR = pathlib.Path("assets/thumbs")
+          OUT = pathlib.Path("assets/manifest.json")
+
+          items = []
+          if FULL_DIR.exists():
+            for p in sorted(FULL_DIR.rglob("*")):
+              if not p.is_file():
+                continue
+              if p.suffix.lower() not in [".jpg", ".jpeg", ".png", ".webp"]:
+                continue
+
+              rel = p.relative_to(FULL_DIR).as_posix()
+              stem = p.stem
+
+              # 让标题更像人类：把下划线/连字符变空格
+              title = re.sub(r"[_-]+", " ", stem).strip()
+
+              items.append({
+                "full": f"assets/full/{rel}",
+                "thumb": f"assets/thumbs/{rel}",
+                "title": title
+              })
+
+          OUT.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(f"manifest.json generated: {len(items)} files -> {OUT}")
+          PY
+
       - name: Commit thumbnails + manifest
         shell: bash
         run: |
           set -euo pipefail
 
-          # 有变更才提交（避免空提交）
+          # 只有 assets/thumbs 和 assets/manifest.json 有变化才提交
           if [[ -n "$(git status --porcelain assets/thumbs assets/manifest.json)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
