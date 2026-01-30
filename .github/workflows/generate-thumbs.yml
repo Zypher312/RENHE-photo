@@ -1,4 +1,4 @@
-name: Generate thumbnails
+name: Generate thumbnails + manifest
 
 on:
   push:
@@ -9,11 +9,10 @@ on:
 
 jobs:
   thumbs:
-    # 防止 actions 自己提交缩略图后触发无限循环
+    # 防止 actions 自己提交缩略图/manifest 后触发无限循环
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
-    # 允许工作流把生成的缩略图提交回仓库
     permissions:
       contents: write
 
@@ -66,7 +65,7 @@ jobs:
               fi
             done
 
-          # 清理：如果 full 里删了图，就把对应 thumbs 也删掉（保留 .gitkeep）
+          # 清理：full 里删了图，就把对应 thumbs 也删掉（保留 .gitkeep）
           find assets/thumbs -type f ! -name '.gitkeep' -print0 \
           | while IFS= read -r -d '' t; do
               rel="${t#assets/thumbs/}"
@@ -76,18 +75,38 @@ jobs:
               fi
             done
 
-      - name: Commit thumbnails
+      - name: Generate assets/manifest.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          import os, json
+
+          root = "assets/thumbs"
+          files = []
+          for dirpath, _, filenames in os.walk(root):
+            for fn in filenames:
+              if fn == ".gitkeep":
+                continue
+              low = fn.lower()
+              if low.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                rel = os.path.relpath(os.path.join(dirpath, fn), root).replace("\\", "/")
+                files.append(rel)
+
+          files.sort()
+          os.makedirs("assets", exist_ok=True)
+          with open("assets/manifest.json", "w", encoding="utf-8") as f:
+            json.dump(files, f, ensure_ascii=False, indent=2)
+
+          print(f"manifest.json generated: {len(files)} files")
+          PY
+
+      - name: Commit thumbnails + manifest
         shell: bash
         run: |
           set -euo pipefail
 
-          # 如果 thumbs 里有变化，就提交并推送
-          if [[ -n "$(git status --porcelain assets/thumbs)" ]]; then
+          if [[ -n "$(git status --porcelain assets/thumbs assets/manifest.json)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add assets/thumbs
-            git commit -m "Auto-generate thumbnails"
-            git push
-          else
-            echo "No thumbnail changes."
-          fi
+            git add assets/thumbs assets/manifest.json
