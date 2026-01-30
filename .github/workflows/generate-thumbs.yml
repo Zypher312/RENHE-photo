@@ -1,0 +1,82 @@
+name: Generate thumbnails
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "assets/full/**"
+      - ".github/workflows/generate-thumbs.yml"
+
+jobs:
+  thumbs:
+    # 双保险：避免 actions 自己提交缩略图后触发循环
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Generate thumbnails (800px long edge) + strip EXIF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/thumbs
+
+          # 遍历 assets/full 下所有常见图片（支持子文件夹）
+          find assets/full -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print0 \
+          | while IFS= read -r -d '' f; do
+              rel="${f#assets/full/}"                 # 相对路径，如 2026/a.jpg
+              out="assets/thumbs/$rel"               # 缩略图对应路径
+              mkdir -p "$(dirname "$out")"
+
+              ext="${f##*.}"
+              ext_lc="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+
+              echo "thumb: $f -> $out"
+
+              # -auto-orient：按拍摄方向旋转
+              # -strip：去除EXIF/定位等元数据（只作用于缩略图）
+              # -resize '800x800>'：长边最多800，且只缩小不放大
+              if [[ "$ext_lc" == "jpg" || "$ext_lc" == "jpeg" ]]; then
+                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              elif [[ "$ext_lc" == "png" ]]; then
+                magick "$f" -auto-orient -strip -resize '800x800>' -define png:compression-level=9 "$out"
+              elif [[ "$ext_lc" == "webp" ]]; then
+                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              else
+                magick "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
+              fi
+            done
+
+          # 清理：如果 full 里删了图，就把对应 thumbs 也删掉（保留 .gitkeep）
+          find assets/thumbs -type f ! -name '.gitkeep' -print0 \
+          | while IFS= read -r -d '' t; do
+              rel="${t#assets/thumbs/}"
+              if [[ ! -f "assets/full/$rel" ]]; then
+                echo "remove orphan thumb: $t"
+                rm -f "$t"
+              fi
+            done
+
+      - name: Commit thumbnails
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain assets/thumbs)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add assets/thumbs
+            git commit -m "Auto-generate thumbnails"
+            git push
+          else
+            echo "No thumbnail changes."
+          fi
