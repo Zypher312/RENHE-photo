@@ -44,29 +44,51 @@
         return;
       }
 
-      const files = await res.json(); // ["a.jpg","b.png",...]
-      if (!Array.isArray(files) || files.length === 0) {
+      const items = await res.json();
+      if (!Array.isArray(items) || items.length === 0) {
         status.textContent = '还没有图片：请把高清图上传到 assets/full/。';
         return;
       }
 
+      // 兼容两种 manifest：
+      // A) 新版对象数组：[{full, thumb, title}, ...]
+      // B) 旧版字符串数组：["a.jpg","b.png", ...]
       container.innerHTML = '';
-      for (const name of files) {
+
+      let count = 0;
+      for (const it of items) {
+        let full, thumb, title;
+
+        if (typeof it === 'string') {
+          // 旧格式
+          full = `assets/full/${it}`;
+          thumb = `assets/thumbs/${it}`;
+          title = it;
+        } else if (it && typeof it === 'object') {
+          // 新格式（Actions 生成的）
+          full = it.full;
+          thumb = it.thumb;
+          title = it.title || (it.full ? it.full.split('/').pop() : 'photo');
+        } else {
+          continue;
+        }
+
         const a = document.createElement('a');
-        a.href = `assets/full/${name}`;
+        a.href = full;
         a.setAttribute('data-lightbox', 'gallery');
-        a.setAttribute('data-title', name);
+        a.setAttribute('data-title', title);
 
         const img = document.createElement('img');
-        img.src = `assets/thumbs/${name}`;
+        img.src = thumb;
         img.loading = 'lazy';
-        img.alt = name;
+        img.alt = title;
 
         a.appendChild(img);
         container.appendChild(a);
+        count++;
       }
 
-      status.textContent = `已加载 ${files.length} 张图片`;
+      status.textContent = `已加载 ${count} 张图片`;
     }
 
     loadGallery().catch(err => {
