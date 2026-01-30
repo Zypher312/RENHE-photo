@@ -1,112 +1,16 @@
-name: Generate thumbnails + manifest
-
-on:
-  push:
-    branches: ["main"]
-    paths:
-      - "assets/full/**"
-      - ".github/workflows/generate-thumbs.yml"
-
-jobs:
-  thumbs:
-    # 防止 actions 自己提交缩略图/manifest 后触发无限循环
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install ImageMagick
-        run: sudo apt-get update && sudo apt-get install -y imagemagick
-
-      - name: Generate thumbnails (800px long edge) + strip EXIF
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p assets/thumbs
-
-          # 兼容 ImageMagick 6/7：优先 magick，没有就用 convert
-          IM_CMD="magick"
-          if ! command -v magick >/dev/null 2>&1; then
-            IM_CMD="convert"
-          fi
-          echo "Using ImageMagick command: $IM_CMD"
-          $IM_CMD -version || true
-
-          # 遍历 assets/full 下所有常见图片（支持子文件夹）
-          find assets/full -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print0 \
-          | while IFS= read -r -d '' f; do
-              rel="${f#assets/full/}"        # 相对路径，如 2026/a.jpg
-              out="assets/thumbs/$rel"      # 缩略图对应路径
-              mkdir -p "$(dirname "$out")"
-
-              ext="${f##*.}"
-              ext_lc="$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
-
-              echo "thumb: $f -> $out"
-
-              # -auto-orient：按拍摄方向旋转
-              # -strip：去除EXIF/定位等元数据（只作用于缩略图）
-              # -resize '800x800>'：长边最多800，且只缩小不放大
-              if [[ "$ext_lc" == "jpg" || "$ext_lc" == "jpeg" ]]; then
-                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
-              elif [[ "$ext_lc" == "png" ]]; then
-                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -define png:compression-level=9 "$out"
-              elif [[ "$ext_lc" == "webp" ]]; then
-                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
-              else
-                $IM_CMD "$f" -auto-orient -strip -resize '800x800>' -quality 82 "$out"
-              fi
-            done
-
-          # 清理：full 里删了图，就把对应 thumbs 也删掉（保留 .gitkeep）
-          find assets/thumbs -type f ! -name '.gitkeep' -print0 \
-          | while IFS= read -r -d '' t; do
-              rel="${t#assets/thumbs/}"
-              if [[ ! -f "assets/full/$rel" ]]; then
-                echo "remove orphan thumb: $t"
-                rm -f "$t"
-              fi
-            done
-
-      - name: Generate assets/manifest.json
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - << 'PY'
-          import os, json
-
-          root = "assets/thumbs"
-          files = []
-          for dirpath, _, filenames in os.walk(root):
-            for fn in filenames:
-              if fn == ".gitkeep":
-                continue
-              low = fn.lower()
-              if low.endswith((".jpg", ".jpeg", ".png", ".webp")):
-                rel = os.path.relpath(os.path.join(dirpath, fn), root).replace("\\", "/")
-                files.append(rel)
-
-          files.sort()
-          os.makedirs("assets", exist_ok=True)
-          with open("assets/manifest.json", "w", encoding="utf-8") as f:
-            json.dump(files, f, ensure_ascii=False, indent=2)
-
-          print(f"manifest.json generated: {len(files)} files")
-          PY
-
       - name: Commit thumbnails + manifest
         shell: bash
         run: |
           set -euo pipefail
 
+          # 有变更才提交（避免空提交）
           if [[ -n "$(git status --porcelain assets/thumbs assets/manifest.json)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
             git add assets/thumbs assets/manifest.json
+            git commit -m "Auto-generate thumbnails + manifest"
+            git push
+          else
+            echo "No changes to commit."
+          fi
