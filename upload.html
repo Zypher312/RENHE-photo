@@ -6,6 +6,80 @@
   <title>投稿/上传</title>
 
   <link rel="stylesheet" href="css/style.css" />
+
+  <style>
+    /* 只作用于本页：不会影响你其他页面 */
+    .wrap { max-width: 980px; margin: 0 auto; }
+
+    .card{
+      background:#fff;
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:18px 18px;
+      margin:16px 0;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+
+    .card h2{ margin:0 0 10px 0; font-size:18px; }
+    .muted{ color:#666; }
+    .small{ font-size:14px; line-height:1.65; }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:12px 14px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:700;
+      border:1px solid transparent;
+      user-select:none;
+    }
+    .btn-primary{ background:#4f46e5; color:#fff; }
+    .btn-primary:hover{ filter:brightness(0.98); }
+
+    .btn-secondary{ background:#111827; color:#fff; }
+    .btn-secondary:hover{ filter:brightness(0.98); }
+
+    .btn-outline{
+      background:#fff;
+      border-color: rgba(0,0,0,.16);
+      color:#111827;
+    }
+    .btn-outline:hover{ background:#f7f7f7; }
+
+    .btn-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+
+    code{
+      background:#f3f4f6;
+      padding:2px 6px;
+      border-radius:8px;
+    }
+
+    .tag{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:#f3f4f6;
+      color:#111827;
+      font-size:12px;
+      margin-right:8px;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    @media (min-width: 860px){
+      .grid2{ grid-template-columns: 1fr 1fr; }
+    }
+
+    .ul-tight{ margin: 10px 0 0 18px; }
+    .ul-tight li{ margin: 6px 0; }
+
+    .hr{ margin: 18px 0; opacity:.25; }
+  </style>
 </head>
 
 <body>
@@ -17,51 +91,77 @@
     </nav>
   </header>
 
-  <main>
+  <main class="wrap">
     <h1>投稿/上传</h1>
-    <p>欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
+    <p class="muted">欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
 
-    <h2>投稿规则</h2>
-    <ul>
-      <li>仅接受你拥有版权或已获授权的照片。</li>
-      <li>建议 JPG/PNG/WebP，单张不超过50MB。</li>
-      <li>发布前我可能会压缩尺寸并清理 EXIF。</li>
-      <li>注册Google账号可能会一时有一点点麻烦，但是有助于编辑表单也大大帮开发者节约了时间，希望有条件的产出姐姐们可以注册一下QAQ。</li>
-      <li>填写这个表单应该需要梯子...内地网速过于阻塞QAQ。</li>
-    </ul>
+    <!-- 投稿入口 -->
+    <div class="card">
+      <h2>开始投稿</h2>
+      <p class="muted small" style="margin:0;">
+        由于表单包含<strong>文件上传</strong>，Google 不允许嵌入到网页里，所以会在新窗口打开。
+      </p>
 
-    <!-- 入口 1：Google 表单（如果你未来要用） -->
-    <p style="margin-top: 18px;">
-      <a href="https://forms.gle/9uDddHdVprX2vk1J7" target="_blank" rel="noopener">
-        打开上传表单 →
-      </a>
-    </p>
+      <div class="btn-row">
+        <!-- 入口 1：Google 表单 -->
+        <a class="btn btn-primary"
+           href="https://forms.gle/9uDddHdVprX2vk1J7"
+           target="_blank" rel="noopener">
+          打开投稿表单（Google） →
+        </a>
 
-    <!-- 入口 2：免 Google 账号（Dropbox/OneDrive File Request） -->
-    <p style="margin-top: 10px;">
-      <a
-        href="https://forms.gle/warvnTVRVgnauUm46"
-        target="_blank"
-        rel="noopener"
-      >
-        如果没有Google账号请点击此链接上传 →
-      </a>
-    </p>
+        <!-- 入口 2：免 Google 账号（备用） -->
+        <a class="btn btn-secondary"
+           href="https://forms.gle/warvnTVRVgnauUm46"
+           target="_blank" rel="noopener">
+          没有 Google 账号？点这里上传 →
+        </a>
 
-    <hr style="margin: 24px 0; opacity: .35;" />
+        <!-- 可选：给你一个“查看投稿状态/联系”按钮，你想要可保留，不想要就删掉 -->
+        <a class="btn btn-outline"
+           href="gallery.html">
+          返回画廊
+        </a>
+      </div>
 
-    <h2>建议你填写这些信息（可写在文件夹/文件名/备注里）</h2>
-    <ul>
-      <li><b>图片上传者</b>：你的名字 / 昵称</li>
-      <li><b>拍摄时间</b>：YYYY-MM-DD</li>
-      <li><b>涉及人物</b>：例如 A / B / 无</li>
-      <li><b>内容类型</b>：比赛实况 / 训练物料 / 路透 / 饭制同人</li>
-    </ul>
+      <div class="hr"><hr style="opacity:.25;"></div>
 
-    <p style="color:#666; margin-top: 10px;">
-      小提示：上传网盘链接的朋友你可以用文件名格式，例如：<code>2026-01-30_上传者_内容类型_人物.jpg</code>
-    </p>
+      <div class="small muted">
+        <span class="tag">提醒</span>
+        <span>注册 Google 账号可能会有点麻烦，但能让表单更好维护，也能节省开发者时间。谢谢产出姐姐们 QAQ</span>
+        <br />
+        <span class="tag" style="margin-top:8px;">网络</span>
+        <span>填写表单可能需要梯子；内地网络环境有时会不稳定 QAQ</span>
+      </div>
+    </div>
 
+    <!-- 投稿规则 + 建议信息 -->
+    <div class="grid2">
+      <div class="card">
+        <h2>投稿规则</h2>
+        <ul class="ul-tight">
+          <li>仅接受你拥有版权或已获授权的照片。</li>
+          <li>建议 JPG/PNG/WebP，单张不超过 <b>50MB</b>。</li>
+          <li>发布前我可能会压缩尺寸并清理 EXIF。</li>
+          <li>请尽量填写完整信息，方便归档与标注。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>建议填写的信息</h2>
+        <ul class="ul-tight">
+          <li><b>图片上传者</b>：你的名字 / 昵称</li>
+          <li><b>拍摄时间</b>：YYYY-MM-DD</li>
+          <li><b>涉及人物</b>：例如 A / B / 无</li>
+          <li><b>内容类型</b>：比赛实况 / 训练物料 / 路透 / 饭制同人</li>
+        </ul>
+
+        <p class="muted small" style="margin-top:10px;">
+          小提示：如果你用网盘上传/文件请求上传，建议把信息写进文件名，例如：<br />
+          <code>2026-01-30_上传者_内容类型_人物.jpg</code>
+        </p>
+      </div>
+    </div>
   </main>
 
   <footer class="footer">
