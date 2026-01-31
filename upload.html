@@ -8,9 +8,7 @@
   <link rel="stylesheet" href="css/style.css" />
 
   <style>
-    /* 只作用于本页：不会影响你其他页面 */
     .wrap { max-width: 980px; margin: 0 auto; }
-
     .card{
       background:#fff;
       border:1px solid rgba(0,0,0,.08);
@@ -19,10 +17,20 @@
       margin:16px 0;
       box-shadow: 0 1px 8px rgba(0,0,0,.03);
     }
-
     .card h2{ margin:0 0 10px 0; font-size:18px; }
     .muted{ color:#666; }
     .small{ font-size:14px; line-height:1.65; }
+
+    label{ display:block; margin: 12px 0 6px; font-weight:600; }
+    input, select{
+      width:100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.18);
+      outline:none;
+    }
+    input:focus, select:focus{ border-color:#4f46e5; }
 
     .btn{
       display:inline-flex;
@@ -34,13 +42,10 @@
       font-weight:700;
       border:1px solid transparent;
       user-select:none;
+      cursor:pointer;
     }
     .btn-primary{ background:#4f46e5; color:#fff; }
     .btn-primary:hover{ filter:brightness(0.98); }
-
-    .btn-secondary{ background:#111827; color:#fff; }
-    .btn-secondary:hover{ filter:brightness(0.98); }
-
     .btn-outline{
       background:#fff;
       border-color: rgba(0,0,0,.16);
@@ -49,13 +54,6 @@
     .btn-outline:hover{ background:#f7f7f7; }
 
     .btn-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-
-    code{
-      background:#f3f4f6;
-      padding:2px 6px;
-      border-radius:8px;
-    }
-
     .tag{
       display:inline-block;
       padding:4px 10px;
@@ -65,20 +63,12 @@
       font-size:12px;
       margin-right:8px;
     }
-
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:12px;
-    }
-    @media (min-width: 860px){
-      .grid2{ grid-template-columns: 1fr 1fr; }
-    }
-
     .ul-tight{ margin: 10px 0 0 18px; }
     .ul-tight li{ margin: 6px 0; }
-
     .hr{ margin: 18px 0; opacity:.25; }
+
+    #msg{ margin-top: 12px; font-weight: 600; }
+    .hint{ margin-top: 8px; }
   </style>
 </head>
 
@@ -88,6 +78,7 @@
       <a href="index.html">首页</a>
       <a href="gallery.html">画廊</a>
       <a href="upload.html">投稿/上传</a>
+      <a href="admin.html">审核后台</a>
     </nav>
   </header>
 
@@ -95,77 +86,35 @@
     <h1>投稿/上传</h1>
     <p class="muted">欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
 
-    <!-- 投稿入口 -->
+    <!-- 真正的上传表单（路线B） -->
     <div class="card">
       <h2>开始投稿</h2>
-      <p class="muted small" style="margin:0;">
-        由于表单包含<strong>文件上传</strong>，Google 不允许嵌入到网页里，所以会在新窗口打开。
-      </p>
 
-      <div class="btn-row">
-        <!-- 入口 1：Google 表单 -->
-        <a class="btn btn-primary"
-           href="https://forms.gle/9uDddHdVprX2vk1J7"
-           target="_blank" rel="noopener">
-          打开投稿表单（Google） →
-        </a>
+      <form id="uploadForm">
+        <label>图片上传者（必填）</label>
+        <input name="uploader_name" required maxlength="50" placeholder="你的名字/昵称" />
 
-        <!-- 入口 2：免 Google 账号（备用） -->
-        <a class="btn btn-secondary"
-           href="https://forms.gle/warvnTVRVgnauUm46"
-           target="_blank" rel="noopener">
-          没有 Google 账号？点这里上传 →
-        </a>
+        <label>拍摄日期（必填）</label>
+        <input name="taken_at" type="date" required />
 
-        <!-- 可选：给你一个“查看投稿状态/联系”按钮，你想要可保留，不想要就删掉 -->
-        <a class="btn btn-outline"
-           href="gallery.html">
-          返回画廊
-        </a>
-      </div>
+        <label>图片涉及人物（可选）</label>
+        <input name="people" maxlength="100" placeholder="例如：A选手/教练/全队/无" />
 
-      <div class="hr"><hr style="opacity:.25;"></div>
+        <label>内容分类（必填）</label>
+        <select name="category" required>
+          <option value="比赛实况">比赛实况</option>
+          <option value="训练物料">训练物料</option>
+          <option value="路透花絮">路透花絮</option>
+          <option value="饭制同人">饭制同人</option>
+        </select>
 
-      <div class="small muted">
-        <span class="tag">提醒</span>
-        <span>注册Google账号可能会有一点点麻烦，但有助于编辑表单，也大大帮开发者节约了时间，希望有条件的产出姐姐们可以注册一下QAQ</span>
-        <br />
-        <span class="tag" style="margin-top:8px;">网络</span>
-        <span>填写表单需要梯子；内地网络不稳定 QAQ</span>
-      </div>
-    </div>
+        <label>选择图片（必填：jpg/png/webp，≤10MB）</label>
+        <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
 
-    <!-- 投稿规则 + 建议信息 -->
-    <div class="grid2">
-      <div class="card">
-        <h2>投稿规则</h2>
-        <ul class="ul-tight">
-          <li>仅接受你拥有版权或已获授权的照片。</li>
-          <li>建议 JPG/PNG/WebP，单张不超过 <b>50MB</b>。</li>
-          <li>发布前我可能会压缩尺寸并清理 EXIF。</li>
-          <li>请尽量填写完整信息，方便归档与标注。</li>
-        </ul>
-      </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" type="submit">提交审核 →</button>
+          <a class="btn btn-outline" href="gallery.html">返回画廊</a>
+        </div>
 
-      <div class="card">
-        <h2>建议填写的信息</h2>
-        <ul class="ul-tight">
-          <li><b>图片上传者</b>：你的名字 / 昵称</li>
-          <li><b>拍摄时间</b>：YYYY-MM-DD</li>
-          <li><b>涉及人物</b>：例如 A / B / 无</li>
-          <li><b>内容类型</b>：比赛实况 / 训练物料 / 路透 / 饭制同人</li>
-        </ul>
-
-        <p class="muted small" style="margin-top:10px;">
-          小提示：如果用网盘上传，建议把信息写进文件名，例如：<br />
-          <code>2026-01-30_上传者_内容类型_人物.jpg</code>
-        </p>
-      </div>
-    </div>
-  </main>
-
-  <footer class="footer">
-    © Zypher
-  </footer>
-</body>
-</html>
+        <p class="muted small hint">
+          上传后
