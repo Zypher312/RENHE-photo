@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/style.css" />
 
   <style>
-    .wrap { max-width: 980px; margin: 0 auto; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 14px; }
     .card{
       background:#fff;
       border:1px solid rgba(0,0,0,.08);
@@ -54,6 +54,7 @@
     .btn-outline:hover{ background:#f7f7f7; }
 
     .btn-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+
     .tag{
       display:inline-block;
       padding:4px 10px;
@@ -67,8 +68,24 @@
     .ul-tight li{ margin: 6px 0; }
     .hr{ margin: 18px 0; opacity:.25; }
 
-    #msg{ margin-top: 12px; font-weight: 600; }
+    #msg{
+      margin-top: 12px;
+      font-weight: 700;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid rgba(0,0,0,.08);
+      min-height: 22px;
+    }
     .hint{ margin-top: 8px; }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    @media (min-width: 860px){
+      .grid2{ grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 
@@ -86,11 +103,11 @@
     <h1>投稿/上传</h1>
     <p class="muted">欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
 
-    <!-- 真正的上传表单（路线B） -->
+    <!-- 上传表单（路线B） -->
     <div class="card">
       <h2>开始投稿</h2>
 
-      <form id="uploadForm">
+      <form id="uploadForm" novalidate>
         <label>图片上传者（必填）</label>
         <input name="uploader_name" required maxlength="50" placeholder="你的名字/昵称" />
 
@@ -108,16 +125,57 @@
           <option value="饭制同人">饭制同人</option>
         </select>
 
-        <label>选择图片（必填：jpg/png/webp，≤10MB）</label>
+        <label>选择图片（必填：jpg/png/webp，≤10MB/张，可多选）</label>
         <input id="photoInput" name="photo" type="file"
-       accept="image/jpeg,image/png,image/webp"
-       multiple required />
-
+               accept="image/jpeg,image/png,image/webp"
+               multiple required />
 
         <div class="btn-row">
-          <button class="btn btn-primary" type="submit">提交审核 →</button>
+          <!-- 关键：type="button"，避免表单提交刷新 -->
+          <button class="btn btn-primary" id="submitBtn" type="button">提交审核 →</button>
           <a class="btn btn-outline" href="gallery.html">返回画廊</a>
         </div>
 
+        <!-- 状态提示 -->
+        <div id="msg">（等待脚本加载…如果这里一直不变，说明 js 没加载成功）</div>
+
         <p class="muted small hint">
-          上传后
+          提交后会先进入 <b>pending</b> 队列。管理员审核通过后才会在画廊显示。
+        </p>
+      </form>
+    </div>
+
+    <!-- 规则说明 -->
+    <div class="grid2">
+      <div class="card">
+        <h2>投稿规则</h2>
+        <ul class="ul-tight">
+          <li>仅接受你拥有版权或已获授权的照片。</li>
+          <li>建议 JPG/PNG/WebP，单张 ≤ <b>10MB</b>（可按需改大）。</li>
+          <li>照片将先进入审核队列，通过后展示在画廊。</li>
+          <li>必要时我可能会做尺寸压缩与信息清理（如 EXIF）。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>更好归档的小建议</h2>
+        <div class="small muted">
+          <span class="tag">文件名建议</span>
+          <span>可以把信息写进文件名，比如：</span><br />
+          <code>2026-02-02_上传者_内容类型_人物_001.jpg</code>
+          <div class="hr"><hr style="opacity:.25;"></div>
+          <span class="tag">多图</span>
+          <span>同一次选择的多张图片，会共享同一组元数据（上传者/日期/分类/人物）。</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    © Zypher
+  </footer>
+
+  <!-- 关键：module + 版本号防缓存 -->
+  <script type="module" src="./js/upload.js?v=20260202"></script>
+</body>
+</html>
