@@ -1,29 +1,39 @@
-import { supabase } from "./supabase.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-const $ = (id) => document.getElementById(id);
+// ✅ 改成你自己的
+const SUPABASE_URL = "https://ymfwfruzhzpvexzqwbfq.supabase.co";
+const SUPABASE_KEY = "sb_publishable_MaLbSbI140CBstTTP2ICmw_R8XEZNyy";
 
-const loginCard = $("loginCard");
-const adminCard = $("adminCard");
-const listCard  = $("listCard");
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
-const emailEl = $("email");
-const passEl  = $("password");
+const loginCard = document.getElementById("loginCard");
+const adminCard = document.getElementById("adminCard");
+const listCard  = document.getElementById("listCard");
 
-const btnLogin  = $("btnLogin");
-const btnForgot = $("btnForgot");
-const btnLogout = $("btnLogout");
-const btnReload = $("btnReload");
+const emailEl = document.getElementById("email");
+const passEl  = document.getElementById("password");
 
-const loginMsg = $("loginMsg");
-const adminMsg = $("adminMsg");
+const loginMsg = document.getElementById("loginMsg");
+const adminMsg = document.getElementById("adminMsg");
 
-const whoEl = $("who");
-const uidEl = $("uid");
+const whoEl  = document.getElementById("who");
+const roleEl = document.getElementById("role");
 
-const listEl  = $("list");
-const emptyEl = $("empty");
+const listEl  = document.getElementById("list");
+const emptyEl = document.getElementById("empty");
 
-function setMsg(el, text, cls = "muted") {
+const btnLogin  = document.getElementById("btnLogin");
+const btnForgot = document.getElementById("btnForgot");
+const btnLogout = document.getElementById("btnLogout");
+const btnReload = document.getElementById("btnReload");
+
+function setMsg(el, text, cls="muted"){
   el.className = "msg " + cls + " small";
   el.textContent = text || "";
 }
@@ -39,16 +49,25 @@ function escapeHtml(s){
     .replaceAll("'","&#39;");
 }
 
+function getBaseUrl(){
+  // https://zypher312.github.io/RENHE-photo/admin.html -> https://zypher312.github.io/RENHE-photo
+  const p = location.pathname.replace(/\/[^/]*$/, "");
+  return location.origin + p;
+}
+
+function publicUrl(image_path){
+  // 你的 photos bucket 必须是 public
+  return `${SUPABASE_URL}/storage/v1/object/public/photos/${image_path}`;
+}
+
 async function isAdminByDB(userId){
-  // 通过查询 admins 表判断（依赖你的 RLS：admins_read_self）
   const { data, error } = await supabase
     .from("admins")
     .select("user_id")
     .eq("user_id", userId)
     .maybeSingle();
-
   if (error) throw error;
-  return !!data?.user_id;
+  return !!data;
 }
 
 async function loadPending(){
@@ -76,22 +95,21 @@ async function loadPending(){
   setMsg(adminMsg, `已加载 ${data.length} 条待审投稿。`, "ok");
 
   for (const row of data){
-    const publicUrl = supabase.storage.from("photos").getPublicUrl(row.image_path).data.publicUrl;
+    const img = publicUrl(row.image_path);
 
     const item = document.createElement("div");
     item.className = "item";
+
     item.innerHTML = `
-      <img class="thumb" src="${publicUrl}" alt="thumb" />
-      <div style="min-width:0;">
-        <div style="font-weight:800; margin-bottom:6px;">
-          ${escapeHtml(row.uploader_name || "（未填）")} · ${escapeHtml(row.category || "")} · ${escapeHtml(String(row.year || ""))}
-        </div>
+      <img class="thumb" src="${img}" alt="thumb" />
+      <div class="meta">
+        <h3>${escapeHtml(row.uploader_name || "（未填）")} · ${escapeHtml(row.category || "")} · ${row.year || ""}</h3>
         <div class="muted small">拍摄日期：<b>${escapeHtml(row.taken_at || "")}</b></div>
         <div class="muted small">人物：${escapeHtml(row.people || "无")}</div>
         <div class="muted small">image_path：<code>${escapeHtml(row.image_path || "")}</code></div>
 
         <div class="row" style="margin-top:10px;">
-          <a class="btn btn-outline btn-mini" href="${publicUrl}" target="_blank" rel="noopener">打开原图</a>
+          <a class="btn btn-outline btn-mini" href="${img}" target="_blank" rel="noopener">打开原图</a>
           <div class="spacer"></div>
           <button class="btn btn-bad btn-mini" data-action="reject" data-id="${row.id}">驳回</button>
           <button class="btn btn-ok btn-mini" data-action="approve" data-id="${row.id}">通过</button>
@@ -106,7 +124,8 @@ async function loadPending(){
 
 async function approveOrReject(id, status){
   const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
-  if (rowMsg) rowMsg.textContent = status === "approved" ? "正在通过…" : "正在驳回…";
+  rowMsg.className = "msg muted small";
+  rowMsg.textContent = status === "approved" ? "正在通过…" : "正在驳回…";
 
   const { error } = await supabase
     .from("photos")
@@ -114,20 +133,16 @@ async function approveOrReject(id, status){
     .eq("id", id);
 
   if (error){
-    if (rowMsg) {
-      rowMsg.className = "msg err small";
-      rowMsg.textContent = "操作失败：" + error.message;
-    }
+    rowMsg.className = "msg err small";
+    rowMsg.textContent = "操作失败：" + error.message;
     return;
   }
 
-  if (rowMsg){
-    rowMsg.className = "msg ok small";
-    rowMsg.textContent = "已更新为 " + status + " ✅";
-  }
+  rowMsg.className = "msg ok small";
+  rowMsg.textContent = "已更新为 " + status + " ✅";
 
   setTimeout(() => {
-    const item = rowMsg?.closest(".item");
+    const item = rowMsg.closest(".item");
     if (item) item.remove();
     if (!listEl.children.length) show(emptyEl);
   }, 600);
@@ -137,7 +152,6 @@ async function refreshSessionUI(){
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session){
-    // 未登录
     show(loginCard);
     hide(adminCard);
     hide(listCard);
@@ -147,9 +161,8 @@ async function refreshSessionUI(){
 
   const user = session.user;
   whoEl.textContent = user.email || user.id;
-  uidEl.textContent = "user_id: " + user.id;
+  roleEl.textContent = "user_id: " + user.id;
 
-  // 检查是否管理员
   let admin = false;
   try{
     admin = await isAdminByDB(user.id);
@@ -169,7 +182,6 @@ async function refreshSessionUI(){
     return;
   }
 
-  // 管理员：显示列表
   hide(loginCard);
   show(adminCard);
   show(listCard);
@@ -177,7 +189,7 @@ async function refreshSessionUI(){
   await loadPending();
 }
 
-/** 登录 */
+// ============ 事件：登录（关键：加 try/catch，不然你就会卡在“正在登录”） ============
 btnLogin.addEventListener("click", async () => {
   const email = emailEl.value.trim();
   const password = passEl.value;
@@ -189,53 +201,26 @@ btnLogin.addEventListener("click", async () => {
 
   btnLogin.disabled = true;
   btnForgot.disabled = true;
-  setMsg(loginMsg, "正在登录…");
+  setMsg(loginMsg, "正在登录…（如果一直不动，打开 F12 → Console 看报错）");
+
+  // 8 秒提示（不影响请求，只是给你反馈）
+  const t = setTimeout(() => {
+    setMsg(loginMsg, "仍在登录…如果你开了广告拦截/隐私插件，可能会拦截请求。请看 Console / Network。", "err");
+  }, 8000);
 
   try{
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error){
       setMsg(loginMsg, "登录失败：" + error.message, "err");
-      return;
-    }
-    if (!data?.session){
-      setMsg(loginMsg, "登录未返回 session（可能网络/配置异常），请看控制台 Console。", "err");
       return;
     }
     setMsg(loginMsg, "登录成功 ✅ 正在加载后台…", "ok");
     await refreshSessionUI();
   }catch(e){
-    setMsg(loginMsg, "登录异常：" + (e?.message || e), "err");
+    // ✅ 你现在“卡住”的核心原因通常就在这里：Failed to fetch / 被拦截 / DNS / 404 等
+    setMsg(loginMsg, "登录请求异常：" + (e?.message || e) + "（去 F12→Console/Network 看详细原因）", "err");
   }finally{
-    btnLogin.disabled = false;
-    btnForgot.disabled = false;
-  }
-});
-
-/** 忘记密码（发邮件） */
-btnForgot.addEventListener("click", async () => {
-  const email = emailEl.value.trim();
-  if (!email){
-    setMsg(loginMsg, "先在邮箱框里填你的邮箱，然后点“忘记密码”。", "err");
-    return;
-  }
-
-  btnLogin.disabled = true;
-  btnForgot.disabled = true;
-  setMsg(loginMsg, "正在发送重置密码邮件…");
-
-  try{
-    // 你可以不做 reset.html，也能先用控制台直接改密码；做了 reset.html 体验更完整
-    const redirectTo = location.origin + location.pathname.replace(/admin\.html$/, "reset.html");
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-
-    if (error){
-      setMsg(loginMsg, "发送失败：" + error.message, "err");
-      return;
-    }
-    setMsg(loginMsg, "已发送 ✅ 去邮箱点开重置链接（可能在垃圾箱）。", "ok");
-  }catch(e){
-    setMsg(loginMsg, "发送异常：" + (e?.message || e), "err");
-  }finally{
+    clearTimeout(t);
     btnLogin.disabled = false;
     btnForgot.disabled = false;
   }
@@ -253,7 +238,6 @@ btnReload.addEventListener("click", async () => {
 listEl.addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
-
   const action = btn.dataset.action;
   const id = btn.dataset.id;
 
@@ -261,8 +245,33 @@ listEl.addEventListener("click", async (e) => {
   if (action === "reject")  await approveOrReject(id, "rejected");
 });
 
+// ============ 忘记密码 ============
+btnForgot.addEventListener("click", async () => {
+  const email = emailEl.value.trim();
+  if (!email){
+    setMsg(loginMsg, "先在邮箱框填你要重置的邮箱。", "err");
+    return;
+  }
+
+  btnLogin.disabled = true;
+  btnForgot.disabled = true;
+
+  try{
+    const redirectTo = `${getBaseUrl()}/reset.html`; // 你需要创建 reset.html（下面给你）
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error){
+      setMsg(loginMsg, "发送重置邮件失败：" + error.message, "err");
+      return;
+    }
+    setMsg(loginMsg, "已发送重置邮件 ✅ 去邮箱点链接，按提示设置新密码。", "ok");
+  }catch(e){
+    setMsg(loginMsg, "发送重置邮件异常：" + (e?.message || e), "err");
+  }finally{
+    btnLogin.disabled = false;
+    btnForgot.disabled = false;
+  }
+});
+
 // 初次加载
 refreshSessionUI();
-
-// 会话变化自动刷新
 supabase.auth.onAuthStateChange(() => refreshSessionUI());
