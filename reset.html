@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>重置密码</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .wrap{ max-width:700px;margin:0 auto;padding:24px 14px; }
+    .card{ background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:18px; }
+    label{ display:block;margin:10px 0 6px;font-weight:600; }
+    input{ width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.18); }
+    .btn{ margin-top:12px; padding:10px 14px;border-radius:12px;background:#111827;color:#fff;border:0;cursor:pointer;font-weight:700; }
+    .msg{ margin-top:10px;font-weight:700; }
+    .err{ color:#dc2626; } .ok{ color:#16a34a; } .muted{ color:#666; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>重置密码</h1>
+    <div class="card">
+      <div id="state" class="muted">正在识别重置链接…</div>
+
+      <div id="form" style="display:none;">
+        <label>新密码</label>
+        <input id="p1" type="password" placeholder="至少 8 位，建议包含数字/符号" />
+        <label>确认新密码</label>
+        <input id="p2" type="password" placeholder="再输入一遍" />
+        <button id="btn" class="btn">设置新密码</button>
+      </div>
+
+      <div id="msg" class="msg muted"></div>
+      <p class="muted" style="margin-top:10px;">设置成功后会跳回审核后台。</p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+    const SUPABASE_URL = "https://ymfwfruzhzpvexzqwbfq.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_MaLbSbI140CBstTTP2ICmw_R8XEZNyy";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
+    const state = document.getElementById("state");
+    const form  = document.getElementById("form");
+    const msg   = document.getElementById("msg");
+    const btn   = document.getElementById("btn");
+    const p1    = document.getElementById("p1");
+    const p2    = document.getElementById("p2");
+
+    function setMsg(text, cls="muted"){
+      msg.className = "msg " + cls;
+      msg.textContent = text || "";
+    }
+
+    // supabase 会从 URL 里解析 recovery token 并建立 session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session){
+      state.textContent = "没有检测到重置会话。请从邮件里的重置链接打开本页。";
+      setMsg("如果你是直接手输网址进来的，这里不会生效。", "err");
+    }else{
+      state.textContent = "已识别重置会话 ✅ 请输入新密码：";
+      form.style.display = "";
+      setMsg("");
+    }
+
+    btn?.addEventListener("click", async () => {
+      const a = p1.value;
+      const b = p2.value;
+      if (!a || a.length < 8){
+        setMsg("密码至少 8 位。", "err"); return;
+      }
+      if (a !== b){
+        setMsg("两次密码不一致。", "err"); return;
+      }
+      setMsg("正在更新密码…");
+      const { error } = await supabase.auth.updateUser({ password: a });
+      if (error){
+        setMsg("更新失败：" + error.message, "err"); return;
+      }
+      setMsg("更新成功 ✅ 即将跳转…", "ok");
+      setTimeout(() => {
+        const base = location.origin + location.pathname.replace(/\/[^/]*$/, "");
+        location.href = base + "/admin.html";
+      }, 800);
+    });
+  </script>
+</body>
+</html>
