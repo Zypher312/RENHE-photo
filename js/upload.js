@@ -1,92 +1,142 @@
 import { supabase } from "./supabaseClient.js";
 
-const form = document.querySelector("#uploadForm");
-const msg = document.querySelector("#msg");
-const photoInput = document.querySelector("#photoInput");
-const submitBtn = document.querySelector("#submitBtn");
+// ===== 你项目里用到的表 / bucket =====
+const BUCKET = "photos";
+const TABLE = "photos";
 
-// 这两行是“脚本是否加载成功”的硬证据
-console.log("upload.js loaded");
-msg.textContent = "✅ upload.js 已加载（现在点提交不会刷新页面）";
+// ===== ✅ 单文件大小限制：50MB/张 =====
+const MAX_MB = 50;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
 
-function setMsg(t) { msg.textContent = t; }
+// 允许的图片类型
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-function isAllowedFile(file) {
-  const okType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
-  const okSize = file.size <= 10 * 1024 * 1024; // 10MB/张
-  return okType && okSize;
+const form = document.getElementById("uploadForm");
+const btn = document.getElementById("submitBtn");
+const fileInput = document.getElementById("photoInput");
+const msg = document.getElementById("msg");
+const log = document.getElementById("log");
+
+function setMsg(text, cls = "muted") {
+  msg.className = cls;
+  msg.textContent = text;
+}
+function appendLog(text) {
+  log.textContent += text + "\n";
+}
+function sanitizeFilename(name) {
+  return name.replace(/[/\\?%*:|"<>]/g, "_").replace(/\s+/g, "_");
+}
+function extOkByName(filename) {
+  const lower = filename.toLowerCase();
+  return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp");
 }
 
-submitBtn.addEventListener("click", async () => {
-  // 使用浏览器原生 required 校验
-  if (!form.reportValidity()) return;
+// 页面加载提示（你能看到这句，就说明 upload.js 确实加载成功）
+setMsg("✅ upload.js 已加载，等待提交…", "ok");
 
-  setMsg("提交中...");
+async function handleSubmit() {
+  log.textContent = "";
 
-  try {
-    const files = photoInput?.files ? Array.from(photoInput.files) : [];
-    if (!files.length) throw new Error("请先选择至少 1 张图片");
+  const uploader_name = form.uploader_name.value.trim();
+  const taken_at = form.taken_at.value; // yyyy-mm-dd
+  const people = form.people.value.trim();
+  const category = form.category.value;
 
-    const fd = new FormData(form);
-    const uploader = String(fd.get("uploader_name") || "").trim();
-    const takenAt = String(fd.get("taken_at") || "").trim();
-    const people = String(fd.get("people") || "").trim();
-    const category = String(fd.get("category") || "").trim();
-
-    const year = Number(takenAt.slice(0, 4));
-    if (!year) throw new Error("拍摄日期不合法");
-
-    const bad = files.filter(f => !isAllowedFile(f));
-    if (bad.length) {
-      throw new Error("有文件类型/大小不符合（jpg/png/webp，≤10MB/张）");
-    }
-
-    let okCount = 0;
-    const failed = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setMsg(`上传中 ${i + 1}/${files.length}：${file.name}`);
-
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `uploads/${crypto.randomUUID()}.${ext}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("photos")
-        .upload(path, file, { contentType: file.type, upsert: false });
-
-      if (upErr) {
-        failed.push(`${file.name}（上传失败：${upErr.message}）`);
-        continue;
-      }
-
-      const { error: dbErr } = await supabase.from("photos").insert({
-        image_path: path,
-        uploader_name: uploader,
-        taken_at: takenAt,
-        people: people || null,
-        category,
-        year,
-        status: "pending",
-      });
-
-      if (dbErr) {
-        failed.push(`${file.name}（写入失败：${dbErr.message}）`);
-        continue;
-      }
-
-      okCount++;
-    }
-
-    form.reset();
-    if (failed.length === 0) {
-      setMsg(`提交成功 ✅ 已上传 ${okCount}/${files.length} 张，全部进入待审核队列`);
-    } else {
-      setMsg(`部分成功：已上传 ${okCount}/${files.length} 张；失败 ${failed.length} 张（F12 控制台看明细）`);
-      console.warn("失败明细：", failed);
-    }
-  } catch (err) {
-    console.error(err);
-    setMsg("提交失败：" + (err.message || "未知错误"));
+  const files = Array.from(fileInput.files || []);
+  if (!uploader_name || !taken_at || !category) {
+    setMsg("提交失败：请把必填项都填完。", "bad");
+    return;
   }
+  if (files.length === 0) {
+    setMsg("提交失败：请选择至少 1 张图片。", "bad");
+    return;
+  }
+
+  // 前端校验：类型 + 大小
+  const badFiles = files.filter((f) => {
+    const typeOk = ALLOWED_TYPES.has(f.type) || extOkByName(f.name);
+    const sizeOk = f.size <= MAX_BYTES;
+    return !(typeOk && sizeOk);
+  });
+
+  if (badFiles.length > 0) {
+    setMsg(`提交失败：有文件类型/大小不符合（jpg/png/webp，≤${MAX_MB}MB/张）`, "bad");
+    appendLog("不符合的文件：");
+    badFiles.forEach((f) => {
+      appendLog(`- ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB, ${f.type || "unknown"})`);
+    });
+    return;
+  }
+
+  btn.disabled = true;
+  setMsg(`开始上传：共 ${files.length} 张…`, "warn");
+
+  let okCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const year = new Date(taken_at).getFullYear();
+    const safeName = sanitizeFilename(file.name);
+    const uuid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    // 你存储路径的组织方式：year/category/uuid_filename
+    const objectPath = `${year}/${category}/${uuid}_${safeName}`;
+
+    appendLog(`[#${i + 1}] 上传中：${file.name} -> ${objectPath}`);
+
+    // 1) 上传到 Storage
+    const up = await supabase.storage.from(BUCKET).upload(objectPath, file, {
+      upsert: false,
+      contentType: file.type || undefined
+    });
+
+    if (up.error) {
+      failCount++;
+      appendLog(`   ❌ Storage 上传失败：${up.error.message}`);
+      continue;
+    }
+
+    // 2) 写入数据库（pending）
+    const ins = await supabase.from(TABLE).insert([{
+      image_path: objectPath,
+      uploader_name,
+      taken_at,
+      people: people || null,
+      category,
+      year,
+      status: "pending"
+    }]);
+
+    if (ins.error) {
+      failCount++;
+      appendLog(`   ❌ DB 写入失败：${ins.error.message}`);
+
+      // 可选：DB写入失败就删掉刚上传的文件（避免孤儿文件）
+      // await supabase.storage.from(BUCKET).remove([objectPath]);
+
+      continue;
+    }
+
+    okCount++;
+    appendLog("   ✅ 成功：已进入 pending");
+  }
+
+  if (okCount > 0 && failCount === 0) {
+    setMsg(`提交成功：${okCount}/${files.length} 张已进入审核队列（pending）。`, "ok");
+    form.reset();
+  } else if (okCount > 0) {
+    setMsg(`部分成功：成功 ${okCount} 张，失败 ${failCount} 张。看下方日志。`, "warn");
+  } else {
+    setMsg("提交失败：全部失败。看下方日志（常见原因：RLS/Policy/后端限制）。", "bad");
+  }
+
+  btn.disabled = false;
+}
+
+// ✅ 你现在用的是按钮触发（不刷新页面）
+btn.addEventListener("click", (e) => {
+  e.preventDefault();
+  handleSubmit();
 });
