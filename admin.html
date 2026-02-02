@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>审核后台</title>
+
+  <link rel="stylesheet" href="css/style.css" />
+
+  <style>
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 14px; }
+    .card{
+      background:#fff;
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:18px;
+      margin:16px 0;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+    .muted{ color:#666; }
+    .small{ font-size:14px; line-height:1.65; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .spacer{ flex:1; }
+
+    label{ display:block; margin: 10px 0 6px; font-weight:600; }
+    input{
+      width: 320px;
+      max-width: 100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.18);
+      outline:none;
+    }
+    input:focus{ border-color:#4f46e5; }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 14px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:700;
+      border:1px solid transparent;
+      user-select:none;
+      cursor:pointer;
+      background:#111827;
+      color:#fff;
+    }
+    .btn:hover{ filter:brightness(0.98); }
+    .btn-outline{
+      background:#fff;
+      border-color: rgba(0,0,0,.16);
+      color:#111827;
+    }
+    .btn-outline:hover{ background:#f7f7f7; }
+    .btn-ok{ background:#16a34a; }
+    .btn-bad{ background:#dc2626; }
+    .btn-mini{ padding:8px 12px; border-radius:10px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    @media (min-width: 920px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+    }
+
+    .item{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      padding:14px;
+      border:1px solid rgba(0,0,0,.10);
+      border-radius:14px;
+    }
+
+    .thumb{
+      width: 120px;
+      height: 120px;
+      border-radius:12px;
+      background:#f3f4f6;
+      flex: 0 0 auto;
+      object-fit: cover;
+      border:1px solid rgba(0,0,0,.08);
+    }
+
+    .meta{ min-width: 0; }
+    .meta h3{ margin:0 0 6px; font-size:16px; }
+    .kv{ margin: 2px 0; }
+    code{ background:#f3f4f6; padding:2px 6px; border-radius:8px; }
+    .msg{ margin-top:10px; font-weight:700; }
+    .err{ color:#dc2626; }
+    .ok{ color:#16a34a; }
+    .hidden{ display:none; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="gallery.html">画廊</a>
+      <a href="upload.html">投稿/上传</a>
+      <a href="admin.html">审核后台</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <h1>审核后台</h1>
+    <p class="muted">只有管理员可以查看/审核 <code>pending</code> 投稿。</p>
+
+    <!-- 登录卡片 -->
+    <div id="loginCard" class="card">
+      <h2 style="margin:0 0 8px;">管理员登录</h2>
+      <div class="row">
+        <div>
+          <label>邮箱</label>
+          <input id="email" type="email" placeholder="admin@example.com" />
+        </div>
+        <div>
+          <label>密码</label>
+          <input id="password" type="password" placeholder="••••••••" />
+        </div>
+        <div style="padding-top:30px;">
+          <button id="btnLogin" class="btn">登录</button>
+        </div>
+      </div>
+      <div id="loginMsg" class="msg muted small"></div>
+      <p class="muted small" style="margin-top:10px;">
+        说明：登录使用 Supabase Auth 的邮箱/密码账号（你自己注册的那个）。
+      </p>
+    </div>
+
+    <!-- 顶部状态卡片 -->
+    <div id="adminCard" class="card hidden">
+      <div class="row">
+        <div>
+          <div class="muted small">当前登录</div>
+          <div id="who" style="font-weight:800;"></div>
+          <div id="role" class="muted small"></div>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnReload" class="btn btn-outline">刷新待审列表</button>
+        <button id="btnLogout" class="btn">退出登录</button>
+      </div>
+      <div id="adminMsg" class="msg muted small"></div>
+    </div>
+
+    <!-- 待审列表 -->
+    <div id="listCard" class="card hidden">
+      <h2 style="margin:0 0 8px;">待审核（pending）</h2>
+      <div id="list" class="grid"></div>
+      <div id="empty" class="muted small hidden" style="margin-top:10px;">暂无待审投稿。</div>
+    </div>
+  </main>
+
+  <footer class="footer">© Zypher</footer>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    // ✅ 用你给的 URL + publishable key
+    const SUPABASE_URL = "https://ymfwfruzhzpvexzqwbfq.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_MaLbSbI140CBstTTP2ICmw_R8XEZNyy";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const loginCard = document.getElementById("loginCard");
+    const adminCard = document.getElementById("adminCard");
+    const listCard  = document.getElementById("listCard");
+
+    const emailEl = document.getElementById("email");
+    const passEl  = document.getElementById("password");
+
+    const loginMsg = document.getElementById("loginMsg");
+    const adminMsg = document.getElementById("adminMsg");
+
+    const whoEl  = document.getElementById("who");
+    const roleEl = document.getElementById("role");
+
+    const listEl  = document.getElementById("list");
+    const emptyEl = document.getElementById("empty");
+
+    function setMsg(el, text, cls="muted"){
+      el.className = "msg " + cls + " small";
+      el.textContent = text || "";
+    }
+
+    function show(el){ el.classList.remove("hidden"); }
+    function hide(el){ el.classList.add("hidden"); }
+
+    function publicUrl(image_path){
+      // image_path 类似：uploads/xxxx.jpg
+      return `${SUPABASE_URL}/storage/v1/object/public/photos/${image_path}`;
+    }
+
+    async function isAdminByDB(userId){
+      // 通过查询 admins 表判断
+      const { data, error } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    }
+
+    async function loadPending(){
+      listEl.innerHTML = "";
+      hide(emptyEl);
+      setMsg(adminMsg, "正在加载待审列表…");
+
+      const { data, error } = await supabase
+        .from("photos")
+        .select("id,image_path,uploader_name,taken_at,people,category,year,status,created_at")
+        .eq("status","pending")
+        .order("created_at", { ascending: true });
+
+      if (error){
+        setMsg(adminMsg, "加载失败：" + error.message, "err");
+        return;
+      }
+
+      if (!data || data.length === 0){
+        setMsg(adminMsg, "已加载。暂无待审投稿。", "ok");
+        show(emptyEl);
+        return;
+      }
+
+      setMsg(adminMsg, `已加载 ${data.length} 条待审投稿。`, "ok");
+
+      for (const row of data){
+        const img = publicUrl(row.image_path);
+
+        const item = document.createElement("div");
+        item.className = "item";
+
+        item.innerHTML = `
+          <img class="thumb" src="${img}" alt="thumb" />
+          <div class="meta">
+            <h3>${escapeHtml(row.uploader_name || "（未填）")} · ${escapeHtml(row.category || "")} · ${row.year || ""}</h3>
+            <div class="kv muted small">拍摄日期：<b>${row.taken_at || ""}</b></div>
+            <div class="kv muted small">人物：${escapeHtml(row.people || "无")}</div>
+            <div class="kv muted small">image_path：<code>${escapeHtml(row.image_path || "")}</code></div>
+
+            <div class="row" style="margin-top:10px;">
+              <a class="btn btn-outline btn-mini" href="${img}" target="_blank" rel="noopener">打开原图</a>
+              <div class="spacer"></div>
+              <button class="btn btn-bad btn-mini" data-action="reject" data-id="${row.id}">驳回</button>
+              <button class="btn btn-ok btn-mini" data-action="approve" data-id="${row.id}">通过</button>
+            </div>
+
+            <div class="msg muted small" data-rowmsg="${row.id}"></div>
+          </div>
+        `;
+
+        listEl.appendChild(item);
+      }
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#39;");
+    }
+
+    async function approveOrReject(id, status){
+      const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
+      rowMsg.textContent = status === "approved" ? "正在通过…" : "正在驳回…";
+
+      const { error } = await supabase
+        .from("photos")
+        .update({ status })
+        .eq("id", id);
+
+      if (error){
+        rowMsg.className = "msg err small";
+        rowMsg.textContent = "操作失败：" + error.message;
+        return false;
+      }
+
+      rowMsg.className = "msg ok small";
+      rowMsg.textContent = "已更新为 " + status + " ✅";
+
+      // 1秒后从列表移除
+      setTimeout(() => {
+        const item = rowMsg.closest(".item");
+        if (item) item.remove();
+        if (!listEl.children.length) show(emptyEl);
+      }, 800);
+
+      return true;
+    }
+
+    // ===== 登录 / 会话 =====
+    async function refreshSessionUI(){
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session){
+        // 未登录
+        show(loginCard);
+        hide(adminCard);
+        hide(listCard);
+        setMsg(loginMsg, "未登录。请先登录管理员账号。");
+        return;
+      }
+
+      // 已登录：检查 admin
+      const user = session.user;
+      whoEl.textContent = user.email || user.id;
+      roleEl.textContent = "user_id: " + user.id;
+
+      let admin = false;
+      try{
+        admin = await isAdminByDB(user.id);
+      }catch(e){
+        show(adminCard);
+        hide(listCard);
+        hide(loginCard);
+        setMsg(adminMsg, "检查管理员失败：" + (e?.message || e), "err");
+        return;
+      }
+
+      if (!admin){
+        show(adminCard);
+        hide(listCard);
+        hide(loginCard);
+        setMsg(adminMsg, "你已登录，但不是管理员（admins 表中没有你的 user_id）。", "err");
+        return;
+      }
+
+      // 管理员：显示列表
+      hide(loginCard);
+      show(adminCard);
+      show(listCard);
+      setMsg(adminMsg, "管理员验证通过 ✅", "ok");
+      await loadPending();
+    }
+
+    // ===== 事件绑定 =====
+    document.getElementById("btnLogin").addEventListener("click", async () => {
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+
+      if (!email || !password){
+        setMsg(loginMsg, "请输入邮箱和密码。", "err");
+        return;
+      }
+
+      setMsg(loginMsg, "正在登录…");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error){
+        setMsg(loginMsg, "登录失败：" + error.message, "err");
+        return;
+      }
+
+      setMsg(loginMsg, "登录成功 ✅ 正在加载后台…", "ok");
+      await refreshSessionUI();
+    });
+
+    document.getElementById("btnLogout").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      await refreshSessionUI();
+    });
+
+    document.getElementById("btnReload").addEventListener("click", async () => {
+      await loadPending();
+    });
+
+    listEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+
+      if (action === "approve"){
+        await approveOrReject(id, "approved");
+      }else if (action === "reject"){
+        await approveOrReject(id, "rejected");
+      }
+    });
+
+    // 页面初次加载：根据是否已登录来切 UI
+    refreshSessionUI();
+
+    // 会话变化自动刷新
+    supabase.auth.onAuthStateChange(() => refreshSessionUI());
+  </script>
+</body>
+</html>
