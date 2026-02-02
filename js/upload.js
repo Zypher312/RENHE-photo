@@ -33,7 +33,7 @@ function extOkByName(filename) {
 }
 
 // 页面加载提示（你能看到这句，就说明 upload.js 确实加载成功）
-setMsg("✅ upload.js 已加载，等待提交…", "ok");
+setMsg("✅ 已加载，等待提交…", "ok");
 
 async function handleSubmit() {
   log.textContent = "";
