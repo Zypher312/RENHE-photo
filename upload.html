@@ -109,7 +109,10 @@
         </select>
 
         <label>选择图片（必填：jpg/png/webp，≤10MB）</label>
-        <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
+        <input id="photoInput" name="photo" type="file"
+       accept="image/jpeg,image/png,image/webp"
+       multiple required />
+
 
         <div class="btn-row">
           <button class="btn btn-primary" type="submit">提交审核 →</button>
