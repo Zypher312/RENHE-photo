@@ -1,92 +1,61 @@
-// js/upload.js
-import { supabase } from "./supabase.js"; // ✅ 如果你用的是 supabaseClient.js，看下方替换说明
+import { supabase } from "./supabaseClient.js";
 
-// ===== 你项目里用到的 bucket / table =====
 const BUCKET = "photos";
 const TABLE  = "photos";
 
-// ===== 单文件大小限制：50MB/张 =====
 const MAX_MB = 50;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-// ✅ 分类中文 -> 英文目录（用于 Storage 路径，避免 Invalid key）
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const TYPE_TO_EXT = {
+  "image/jpeg": "jpg",
+  "image/png":  "png",
+  "image/webp": "webp",
+};
+
+// ✅ 用英文 slug 存目录，避免中文 key
 const CATEGORY_SLUG = {
   "比赛实况": "match",
-  "训练物料": "training",
+  "训练物料": "train",
   "路透花絮": "candid",
   "饭制同人": "fanart",
 };
 
-// ===== DOM =====
 const form = document.getElementById("uploadForm");
 const btn = document.getElementById("submitBtn");
 const fileInput = document.getElementById("photoInput");
 const msg = document.getElementById("msg");
-let log = document.getElementById("log"); // 你页面里最好有 <pre id="log"></pre>
-
-// 如果页面没放 log，也别让脚本炸掉
-if (!log) {
-  log = document.createElement("pre");
-  log.id = "log";
-  log.style.whiteSpace = "pre-wrap";
-  log.style.marginTop = "12px";
-  log.style.padding = "12px";
-  log.style.border = "1px dashed rgba(0,0,0,.2)";
-  log.style.borderRadius = "12px";
-  form.appendChild(log);
-}
+const logEl = document.getElementById("log"); // 你页面里最好有 <pre id="log"></pre>，没有也不致命
 
 function setMsg(text, cls = "") {
   msg.className = cls;
   msg.textContent = text;
 }
-function appendLog(text) {
-  log.textContent += text + "\n";
+function logClear() {
+  if (logEl) logEl.textContent = "";
 }
-
-// ✅ 只允许 ASCII：a-zA-Z0-9._- （其他全部替换成 _）
-function toSafeAsciiPart(s, maxLen = 80) {
-  return (s || "")
-    .normalize("NFKD")
-    .replace(/[^a-zA-Z0-9._-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, maxLen) || "x";
-}
-
-function getCategorySlug(categoryCN) {
-  return CATEGORY_SLUG[categoryCN] || toSafeAsciiPart(categoryCN, 40) || "misc";
+function logAppend(t) {
+  if (logEl) logEl.textContent += t + "\n";
 }
 
 function getExt(file) {
-  // 先看文件名后缀
-  const m = (file.name || "").toLowerCase().match(/\.([a-z0-9]+)$/);
-  if (m) {
-    const ext = m[1];
-    if (ext === "jpeg") return "jpg";
-    if (["jpg", "png", "webp"].includes(ext)) return ext;
-  }
-  // 再看 mime
-  if (file.type === "image/jpeg") return "jpg";
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  return "jpg";
+  if (TYPE_TO_EXT[file.type]) return TYPE_TO_EXT[file.type];
+  const m = /\.([a-zA-Z0-9]+)$/.exec(file.name);
+  return m ? m[1].toLowerCase() : "jpg";
 }
 
-function isFileOk(file) {
-  const typeOk = ALLOWED_TYPES.has(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name || "");
-  const sizeOk = file.size <= MAX_BYTES;
-  return typeOk && sizeOk;
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 // 页面加载提示
 setMsg("✅ 已加载，等待提交…", "ok");
 
 async function handleSubmit() {
-  log.textContent = "";
+  logClear();
 
   const uploader_name = form.uploader_name.value.trim();
-  const taken_at = form.taken_at.value; // yyyy-mm-dd
+  const taken_at = form.taken_at.value; // yyyy-mm-dd（value 永远是这个格式）
   const people = form.people.value.trim();
   const category = form.category.value;
 
@@ -101,11 +70,15 @@ async function handleSubmit() {
     return;
   }
 
-  const badFiles = files.filter((f) => !isFileOk(f));
+  // 前端校验：类型 + 大小
+  const badFiles = files.filter(f => {
+    const typeOk = ALLOWED_TYPES.has(f.type) || !!getExt(f);
+    const sizeOk = f.size <= MAX_BYTES;
+    return !(typeOk && sizeOk);
+  });
   if (badFiles.length > 0) {
     setMsg(`提交失败：有文件类型/大小不符合（jpg/png/webp，≤${MAX_MB}MB/张）`, "bad");
-    appendLog("不符合的文件：");
-    badFiles.forEach((f) => appendLog(`- ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB, ${f.type || "unknown"})`));
+    badFiles.forEach(f => logAppend(`- ${f.name} (${(f.size/1024/1024).toFixed(2)}MB, ${f.type || "unknown"})`));
     return;
   }
 
@@ -116,21 +89,17 @@ async function handleSubmit() {
   let failCount = 0;
 
   const year = new Date(taken_at).getFullYear();
-  const categorySlug = getCategorySlug(category);
+  const catSlug = CATEGORY_SLUG[category] || "misc";
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const ext = getExt(file);
+    const id = uuid();
 
-    // ✅ 文件名也只保留 ASCII
-    const baseName = toSafeAsciiPart((file.name || "file").replace(/\.[^.]+$/, ""), 60);
+    // ✅ 关键：objectPath 全英文 + 只用 uuid 文件名（不拼原始中文文件名）
+    const objectPath = `${year}/${catSlug}/${id}.${ext}`;
 
-    const uuid = (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-    // ✅ Storage 路径：纯英文/数字/下划线，彻底避免 Invalid key
-    const objectPath = `${year}/${categorySlug}/${uuid}_${baseName}.${ext}`;
-
-    appendLog(`[#${i + 1}] 上传中：${file.name} -> ${objectPath}`);
+    logAppend(`[#${i + 1}] 上传中：${file.name} -> ${objectPath}`);
 
     // 1) 上传到 Storage
     const up = await supabase.storage.from(BUCKET).upload(objectPath, file, {
@@ -140,7 +109,7 @@ async function handleSubmit() {
 
     if (up.error) {
       failCount++;
-      appendLog(`   ❌ Storage 上传失败：${up.error.message}`);
+      logAppend(`   ❌ Storage 上传失败：${up.error.message}`);
       continue;
     }
 
@@ -150,24 +119,23 @@ async function handleSubmit() {
       uploader_name,
       taken_at,
       people: people || null,
-      category,         // ✅ 中文照存 DB
+      category,     // 这里仍然保留中文分类作为展示字段
       year,
       status: "pending",
-      original_name: file.name || null, // 可选：保留原始文件名
     }]);
 
     if (ins.error) {
       failCount++;
-      appendLog(`   ❌ DB 写入失败：${ins.error.message}`);
+      logAppend(`   ❌ DB 写入失败：${ins.error.message}`);
 
-      // 避免孤儿文件：DB失败就删掉刚上传的文件
-      await supabase.storage.from(BUCKET).remove([objectPath]);
+      // 可选：DB失败就删 Storage 文件避免孤儿文件
+      // await supabase.storage.from(BUCKET).remove([objectPath]);
 
       continue;
     }
 
     okCount++;
-    appendLog("   ✅ 成功：已进入 pending");
+    logAppend("   ✅ 成功：已进入 pending");
   }
 
   if (okCount > 0 && failCount === 0) {
@@ -176,7 +144,7 @@ async function handleSubmit() {
   } else if (okCount > 0) {
     setMsg(`部分成功：成功 ${okCount} 张，失败 ${failCount} 张。看下方日志。`, "warn");
   } else {
-    setMsg("提交失败：全部失败。看下方日志（如果不再是 Invalid key，那再看 RLS/Policy）。", "bad");
+    setMsg("提交失败：全部失败。看下方日志（若此时不再是 Invalid key，再去查 RLS/Policy）。", "bad");
   }
 
   btn.disabled = false;
