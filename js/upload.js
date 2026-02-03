@@ -95,7 +95,7 @@ async function handleSubmit() {
     const ext = getExt(file);
 
     // ✅ 关键：Storage key 全英文 + 不含原文件名
-    const objectPath = `${year}/${category_slug}/${uuid}.${ext}`;
+    const objectPath = `uploads/${year}/${category}/${uuid}_${safeName}`;
 
     appendLog(`[#${i + 1}] 上传中：${file.name} -> ${objectPath}`);
 
