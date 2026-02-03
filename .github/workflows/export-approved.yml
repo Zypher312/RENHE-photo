@@ -1,3 +1,6 @@
+permissions:
+  contents: write
+  
 name: Export approved photos to assets
 
 on:
