@@ -108,4 +108,87 @@
 
 <body>
   <header>
-    <n
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="gallery.html">画廊</a>
+      <a href="upload.html">投稿/上传</a>
+      <a href="admin.html">审核后台</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <h1>投稿/上传</h1>
+    <p class="muted">欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
+
+    <div class="card">
+      <h2>开始投稿</h2>
+
+      <form id="uploadForm" novalidate>
+        <label>图片上传者（必填）</label>
+        <input name="uploader_name" required maxlength="50" placeholder="你的名字/昵称" />
+
+        <label>拍摄日期（必填）</label>
+        <input name="taken_at" type="date" required />
+
+        <label>图片涉及人物（可选）</label>
+        <input name="people" maxlength="100" placeholder="例如：A选手/教练/全队/无" />
+
+        <label>内容分类（必填）</label>
+        <select name="category" required>
+          <option value="比赛实况">比赛实况</option>
+          <option value="训练物料">训练物料</option>
+          <option value="路透花絮">路透花絮</option>
+          <option value="饭制同人">饭制同人</option>
+        </select>
+
+        <label>选择图片（必填：jpg/png/webp，≤50MB/张，可多选）</label>
+        <input id="photoInput" name="photo" type="file"
+               accept="image/jpeg,image/png,image/webp"
+               multiple required />
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="submitBtn" type="button">提交审核 →</button>
+          <a class="btn btn-outline" href="gallery.html">返回画廊</a>
+        </div>
+
+        <div id="msg">（等待脚本加载…如果这里一直不变，说明 js 没加载成功）</div>
+
+        <!-- ✅ 新增：upload.js 的日志输出区 -->
+        <pre id="log" class="muted small"></pre>
+
+        <p class="muted small hint">
+          提交后会先进入 <b>pending</b> 队列。管理员审核通过后才会在画廊显示。
+        </p>
+      </form>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>投稿规则</h2>
+        <ul class="ul-tight">
+          <li>仅接受你拥有版权或已获授权的照片。</li>
+          <li>建议 JPG/PNG/WebP，单张 ≤ <b>10MB</b>（可按需改大）。</li>
+          <li>照片将先进入审核队列，通过后展示在画廊。</li>
+          <li>必要时我可能会做尺寸压缩与信息清理（如 EXIF）。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>更好归档的小建议</h2>
+        <div class="small muted">
+          <span class="tag">文件名建议</span>
+          <span>可以把信息写进文件名，比如：</span><br />
+          <code>2026-02-02_上传者_内容类型_人物_001.jpg</code>
+          <div class="hr"><hr style="opacity:.25;"></div>
+          <span class="tag">多图</span>
+          <span>同一次选择的多张图片，会共享同一组元数据（上传者/日期/分类/人物）。</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">© Zypher</footer>
+
+  <script type="module" src="./js/upload.js?v=20260203"></script>
+</body>
+</html>
