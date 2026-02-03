@@ -8,94 +8,287 @@
   <link rel="stylesheet" href="css/style.css" />
 
   <style>
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 14px; }
+    :root{
+      --bg: #f6f7fb;
+      --card: #fff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: rgba(17,24,39,.10);
+      --line2: rgba(17,24,39,.06);
+      --brand: #4f46e5;
+      --ok: #16a34a;
+      --bad:#dc2626;
+      --shadow: 0 10px 30px rgba(17,24,39,.06);
+      --radius: 16px;
+    }
+
+    body{ background: var(--bg); color: var(--text); }
+    .wrap{ max-width: 1100px; margin: 0 auto; padding: 0 14px; }
+
     .card{
-      background:#fff;
-      border:1px solid rgba(0,0,0,.08);
-      border-radius:14px;
+      background:var(--card);
+      border:1px solid var(--line2);
+      border-radius: var(--radius);
       padding:18px;
       margin:16px 0;
-      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+      box-shadow: var(--shadow);
     }
-    .muted{ color:#666; }
+
+    .muted{ color:var(--muted); }
     .small{ font-size:14px; line-height:1.65; }
+
     .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
     .spacer{ flex:1; }
 
-    label{ display:block; margin: 10px 0 6px; font-weight:600; }
+    /* 顶部标题区域更像后台 */
+    .page-head{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:14px;
+    }
+    .page-head h1{ margin:0; letter-spacing:.2px; }
+    .page-sub{
+      margin:6px 0 0;
+      color: var(--muted);
+      font-size:14px;
+    }
+
+    /* inputs */
+    label{ display:block; margin: 10px 0 6px; font-weight:700; font-size:13px; color: #374151; }
     input{
       width: 320px;
       max-width: 100%;
       box-sizing:border-box;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(0,0,0,.18);
+      padding:11px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(17,24,39,.16);
       outline:none;
+      background:#fff;
     }
-    input:focus{ border-color:#4f46e5; }
+    input:focus{
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
 
+    /* buttons */
     .btn{
       display:inline-flex;
       align-items:center;
+      justify-content:center;
       gap:8px;
       padding:10px 14px;
-      border-radius:12px;
+      border-radius: 12px;
       text-decoration:none;
-      font-weight:700;
+      font-weight:800;
       border:1px solid transparent;
       user-select:none;
       cursor:pointer;
       background:#111827;
       color:#fff;
+      transition: transform .05s ease, filter .15s ease, background .15s ease;
     }
+    .btn:active{ transform: translateY(1px); }
     .btn:hover{ filter:brightness(0.98); }
+
     .btn-outline{
       background:#fff;
-      border-color: rgba(0,0,0,.16);
+      border-color: rgba(17,24,39,.16);
       color:#111827;
     }
-    .btn-outline:hover{ background:#f7f7f7; }
-    .btn-ok{ background:#16a34a; }
-    .btn-bad{ background:#dc2626; }
-    .btn-mini{ padding:8px 12px; border-radius:10px; }
+    .btn-outline:hover{ background:#f9fafb; }
 
+    .btn-ok{ background: var(--ok); }
+    .btn-bad{ background: var(--bad); }
+    .btn-mini{ padding:8px 12px; border-radius: 11px; font-weight:800; }
+
+    /* message */
+    .msg{ margin-top:10px; font-weight:800; }
+    .err{ color: var(--bad); }
+    .ok{ color: var(--ok); }
+    .hidden{ display:none; }
+
+    /* hint box */
+    .hint{
+      margin-top:12px;
+      padding:12px 12px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid var(--line2);
+    }
+
+    /* list grid */
     .grid{
       display:grid;
       grid-template-columns: 1fr;
-      gap:12px;
-    }
-    @media (min-width: 920px){
-      .grid{ grid-template-columns: 1fr 1fr; }
+      gap:14px;
     }
 
-    .item{
+    /* ======= 审核卡片（核心改造） ======= */
+    .pending-item{
+      border:1px solid var(--line);
+      border-radius: 18px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .pending-top{
+      display:grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap:0;
+    }
+
+    /* 左侧：大预览 */
+    .preview{
+      position:relative;
+      background:#0b1020;
+      min-height: 280px;
       display:flex;
-      gap:12px;
+      align-items:center;
+      justify-content:center;
+    }
+    .preview img{
+      width:100%;
+      height:100%;
+      max-height: 520px;
+      object-fit: contain;
+      display:block;
+      background:#0b1020;
+    }
+    .preview .badge{
+      position:absolute;
+      left:12px;
+      top:12px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      color:#fff;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:800;
+      font-size:12px;
+      backdrop-filter: blur(8px);
+    }
+
+    /* 右侧：信息栏 */
+    .side{
+      padding:14px 14px 12px;
+      border-left: 1px solid var(--line);
+      background: #fbfbfd;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      min-width:0;
+    }
+    .side-head{
+      display:flex;
       align-items:flex-start;
-      padding:14px;
-      border:1px solid rgba(0,0,0,.10);
-      border-radius:14px;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .title{
+      margin:0;
+      font-size:16px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      background: rgba(79,70,229,.10);
+      border:1px solid rgba(79,70,229,.18);
+      color: #3730a3;
+      font-weight:900;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .meta-grid{
+      display:grid;
+      grid-template-columns: 88px 1fr;
+      gap:8px 10px;
+      padding-top:2px;
+      font-size:13px;
+      line-height:1.55;
+    }
+    .k{ color: var(--muted); font-weight:800; }
+    .v{
+      color: var(--text);
+      font-weight:700;
+      min-width:0;
+      word-break: break-word;
     }
 
-    .thumb{
-      width: 120px;
-      height: 120px;
-      border-radius:12px;
+    /* image_path 折叠+可复制 */
+    details.path{
+      border:1px solid var(--line2);
+      border-radius: 14px;
+      background:#fff;
+      padding:10px 10px;
+    }
+    details.path summary{
+      cursor:pointer;
+      list-style:none;
+      font-weight:900;
+      color:#111827;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    details.path summary::-webkit-details-marker{ display:none; }
+    .path-box{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .path-code{
+      flex:1;
       background:#f3f4f6;
-      flex: 0 0 auto;
-      object-fit: cover;
-      border:1px solid rgba(0,0,0,.08);
+      border:1px solid rgba(17,24,39,.08);
+      border-radius: 12px;
+      padding:10px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      line-height:1.45;
+      overflow:auto;
+      max-height: 96px;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
 
-    .meta{ min-width: 0; }
-    .meta h3{ margin:0 0 6px; font-size:16px; }
-    .kv{ margin: 2px 0; }
-    code{ background:#f3f4f6; padding:2px 6px; border-radius:8px; }
-    .msg{ margin-top:10px; font-weight:700; }
-    .err{ color:#dc2626; }
-    .ok{ color:#16a34a; }
-    .hidden{ display:none; }
-    .hint{ margin-top:10px; padding:10px 12px; border-radius:12px; background:#f8fafc; border:1px solid rgba(0,0,0,.06); }
+    /* 底部操作条 */
+    .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:12px 14px 14px;
+      border-top: 1px solid var(--line);
+      background:#fff;
+      justify-content:flex-end;
+    }
+
+    /* 小屏适配：上下结构 */
+    @media (max-width: 920px){
+      .pending-top{ grid-template-columns: 1fr; }
+      .side{ border-left:none; border-top: 1px solid var(--line); }
+      .preview{ min-height: 240px; }
+      .actions{ justify-content:stretch; }
+      .actions .btn{ flex:1; }
+    }
+
+    /* 让 header/nav 更像后台（不破坏你现有 style.css 的话） */
+    header nav a{
+      border-radius: 10px;
+    }
+    header nav a[href="admin.html"]{
+      background: rgba(79,70,229,.10);
+      border:1px solid rgba(79,70,229,.18);
+      color:#3730a3;
+      font-weight:900;
+    }
   </style>
 </head>
 
@@ -110,12 +303,17 @@
   </header>
 
   <main class="wrap">
-    <h1>审核后台</h1>
-    <p class="muted">只有管理员可以查看/审核 <code>pending</code> 投稿。</p>
+    <div class="page-head">
+      <div>
+        <h1>审核后台</h1>
+        <p class="page-sub">只有管理员可以查看/审核 <code>pending</code> 投稿。</p>
+      </div>
+    </div>
 
     <!-- 登录卡片 -->
     <div id="loginCard" class="card">
-      <h2 style="margin:0 0 8px;">管理员登录</h2>
+      <h2 style="margin:0 0 6px; font-size:18px; font-weight:900;">管理员登录</h2>
+      <p class="muted small" style="margin:0 0 10px;">使用 Supabase Auth 的邮箱密码登录。</p>
 
       <div class="row">
         <div>
@@ -142,9 +340,9 @@
       </div>
     </div>
 
-    <!-- 密码重置卡片（从邮件链接打开本页时会显示） -->
+    <!-- 密码重置卡片 -->
     <div id="resetCard" class="card hidden">
-      <h2 style="margin:0 0 8px;">设置新密码</h2>
+      <h2 style="margin:0 0 6px; font-size:18px; font-weight:900;">设置新密码</h2>
       <p class="muted small" style="margin:0 0 10px;">
         你是通过“找回密码邮件”进入的此页面。请输入新密码完成重置。
       </p>
@@ -167,7 +365,7 @@
       <div class="row">
         <div>
           <div class="muted small">当前登录</div>
-          <div id="who" style="font-weight:800;"></div>
+          <div id="who" style="font-weight:900; font-size:16px;"></div>
           <div id="role" class="muted small"></div>
         </div>
         <div class="spacer"></div>
@@ -179,9 +377,22 @@
 
     <!-- 待审列表 -->
     <div id="listCard" class="card hidden">
-      <h2 style="margin:0 0 8px;">待审核（pending）</h2>
-      <div id="list" class="grid"></div>
+      <div class="row" style="align-items:flex-end;">
+        <div>
+          <h2 style="margin:0; font-size:18px; font-weight:900;">待审核（pending）</h2>
+          <div class="muted small" style="margin-top:4px;">点击“打开原图”核对细节，再选择驳回/通过。</div>
+        </div>
+        <div class="spacer"></div>
+      </div>
+
+      <!-- 注意：list 容器 id 不变，admin.js 继续往里塞 item -->
+      <div id="list" class="grid" style="margin-top:12px;"></div>
       <div id="empty" class="muted small hidden" style="margin-top:10px;">暂无待审投稿。</div>
+
+      <!-- 给 admin.js 一个“模板提示”：你可以照这个类名渲染更美观 -->
+      <div class="muted small" style="margin-top:12px;">
+        <b>提示：</b>如果你愿意我也可以顺手把 <code>admin.js</code> 的渲染结构改成下面这种样式（不改逻辑，只改 DOM），就能完全变成截图那种卡片式后台。
+      </div>
     </div>
   </main>
 
