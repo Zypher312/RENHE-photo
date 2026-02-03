@@ -16,8 +16,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: "pkce",
-    storageKey: "renhe-photo-auth"
-  }
+    storageKey: "renhe-photo-auth",
+  },
 });
 
 /** ====== DOM ====== */
@@ -44,15 +44,15 @@ const emptyEl = $("empty");
 
 /** ====== UI helpers ====== */
 function setMsg(el, text, cls = "muted") {
+  if (!el) return;
   el.className = "msg " + cls + " small";
   el.textContent = text || "";
 }
-
-function show(el) { el.classList.remove("hidden"); }
-function hide(el) { el.classList.add("hidden"); }
+function show(el) { el && el.classList.remove("hidden"); }
+function hide(el) { el && el.classList.add("hidden"); }
 
 function escapeHtml(s) {
-  return String(s)
+  return String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -61,9 +61,48 @@ function escapeHtml(s) {
 }
 
 function publicUrl(pathInBucket) {
-  // 用官方方法拿 public url（比手拼更稳）
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(pathInBucket);
   return data?.publicUrl || "";
+}
+
+function fmtDateYMD(s) {
+  // s 可能是 yyyy-mm-dd 或 ISO
+  if (!s) return "";
+  try {
+    // yyyy-mm-dd 直接返回更直观
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return String(s);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  } catch {
+    return String(s);
+  }
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // 兼容旧浏览器
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /** ====== 数据权限判断：是否管理员 ====== */
@@ -76,6 +115,91 @@ async function isAdminByDB(userId) {
 
   if (error) throw error;
   return !!data;
+}
+
+/** ====== 渲染：单条卡片（新布局） ====== */
+function renderPendingItem(row) {
+  const img = publicUrl(row.image_path);
+  const uploader = row.uploader_name || "（未填）";
+  const category = row.category || "未分类";
+  const year = row.year || (row.taken_at ? new Date(row.taken_at).getFullYear() : "");
+  const taken = fmtDateYMD(row.taken_at);
+  const people = row.people || "无";
+  const path = row.image_path || "";
+
+  const item = document.createElement("div");
+  item.className = "pending-item";
+  item.dataset.itemid = row.id;
+
+  // 用 data-* 存一下，后面复制/打开原图/错误回退用
+  item.dataset.img = img;
+  item.dataset.path = path;
+
+  item.innerHTML = `
+    <div class="pending-top">
+      <div class="preview">
+        <div class="badge">PENDING</div>
+        <img class="preview-img" src="${escapeHtml(img)}" alt="preview" loading="lazy" />
+      </div>
+
+      <div class="side">
+        <div class="side-head">
+          <div style="min-width:0;">
+            <h3 class="title">${escapeHtml(uploader)}</h3>
+            <div class="muted small" style="margin-top:2px;">投稿信息</div>
+          </div>
+          <span class="chip">${escapeHtml(category)} · ${escapeHtml(String(year))}</span>
+        </div>
+
+        <div class="meta-grid">
+          <div class="k">拍摄日期</div><div class="v">${escapeHtml(taken || "未填")}</div>
+          <div class="k">人物</div><div class="v">${escapeHtml(people)}</div>
+          <div class="k">状态</div><div class="v"><b>pending</b></div>
+        </div>
+
+        <details class="path">
+          <summary>
+            <span>image_path</span>
+            <span class="muted small">展开 / 收起</span>
+          </summary>
+          <div class="path-box">
+            <div class="path-code">${escapeHtml(path)}</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button class="btn btn-outline btn-mini" type="button" data-action="copy_path" data-id="${row.id}">复制</button>
+              <a class="btn btn-outline btn-mini" href="${escapeHtml(img)}" target="_blank" rel="noopener">打开原图</a>
+            </div>
+          </div>
+        </details>
+
+        <div class="msg muted small" data-rowmsg="${row.id}"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-bad btn-mini" type="button" data-action="reject" data-id="${row.id}">驳回</button>
+      <button class="btn btn-ok btn-mini" type="button" data-action="approve" data-id="${row.id}">通过</button>
+    </div>
+  `;
+
+  // 图片加载失败：换成友好提示，不留破图标
+  const imgEl = item.querySelector(".preview-img");
+  imgEl.addEventListener("error", () => {
+    imgEl.remove();
+    const ph = document.createElement("div");
+    ph.style.color = "rgba(255,255,255,.85)";
+    ph.style.padding = "18px";
+    ph.style.textAlign = "center";
+    ph.innerHTML = `
+      <div style="font-weight:900; font-size:14px; margin-bottom:6px;">预览加载失败</div>
+      <div style="font-size:12px; opacity:.85; line-height:1.45;">
+        可能是 Storage 未公开 / policy 限制，或链接过期。<br/>
+        你仍可使用“打开原图”查看。
+      </div>
+    `;
+    item.querySelector(".preview").appendChild(ph);
+  });
+
+  return item;
 }
 
 /** ====== 加载 pending 列表 ====== */
@@ -109,37 +233,17 @@ async function loadPending() {
   setMsg(adminMsg, `已加载 ${data.length} 条待审投稿。`, "ok");
 
   for (const row of data) {
-    const img = publicUrl(row.image_path);
-
-    const item = document.createElement("div");
-    item.className = "item";
-    item.innerHTML = `
-      <img class="thumb" src="${img}" alt="thumb" />
-      <div class="meta">
-        <h3>${escapeHtml(row.uploader_name || "（未填）")} · ${escapeHtml(row.category || "")} · ${row.year || ""}</h3>
-        <div class="kv muted small">拍摄日期：<b>${row.taken_at || ""}</b></div>
-        <div class="kv muted small">人物：${escapeHtml(row.people || "无")}</div>
-        <div class="kv muted small">image_path：<code>${escapeHtml(row.image_path || "")}</code></div>
-
-        <div class="row" style="margin-top:10px;">
-          <a class="btn btn-outline btn-mini" href="${img}" target="_blank" rel="noopener">打开原图</a>
-          <div class="spacer"></div>
-          <button class="btn btn-bad btn-mini" data-action="reject" data-id="${row.id}">驳回</button>
-          <button class="btn btn-ok btn-mini" data-action="approve" data-id="${row.id}">通过</button>
-        </div>
-
-        <div class="msg muted small" data-rowmsg="${row.id}"></div>
-      </div>
-    `;
-    listEl.appendChild(item);
+    listEl.appendChild(renderPendingItem(row));
   }
 }
 
 /** ====== 审核操作 ====== */
 async function approveOrReject(id, status) {
   const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
-  rowMsg.className = "msg muted small";
-  rowMsg.textContent = status === "approved" ? "正在通过…" : "正在驳回…";
+  if (rowMsg) {
+    rowMsg.className = "msg muted small";
+    rowMsg.textContent = status === "approved" ? "正在通过…" : "正在驳回…";
+  }
 
   const { error } = await supabase
     .from("photos")
@@ -147,20 +251,24 @@ async function approveOrReject(id, status) {
     .eq("id", id);
 
   if (error) {
-    rowMsg.className = "msg err small";
-    rowMsg.textContent = "操作失败：" + error.message;
+    if (rowMsg) {
+      rowMsg.className = "msg err small";
+      rowMsg.textContent = "操作失败：" + error.message;
+    }
     console.error("[approveOrReject] error:", error);
     return false;
   }
 
-  rowMsg.className = "msg ok small";
-  rowMsg.textContent = "已更新为 " + status + " ✅";
+  if (rowMsg) {
+    rowMsg.className = "msg ok small";
+    rowMsg.textContent = "已更新为 " + status + " ✅";
+  }
 
   setTimeout(() => {
-    const item = rowMsg.closest(".item");
+    const item = document.querySelector(`.pending-item[data-itemid="${id}"]`);
     if (item) item.remove();
     if (!listEl.children.length) show(emptyEl);
-  }, 600);
+  }, 650);
 
   return true;
 }
@@ -174,7 +282,6 @@ async function refreshUI() {
   const urlParams = new URLSearchParams(location.search);
   const hash = location.hash || "";
   const isRecovery = hash.includes("recovery") || urlParams.get("type") === "recovery";
-  // 注意：实际 recovery 事件我们用 onAuthStateChange 更稳，下面只是兜底
 
   if (isRecovery) {
     hide(loginCard);
@@ -186,7 +293,6 @@ async function refreshUI() {
   }
 
   if (!session) {
-    // 未登录
     show(loginCard);
     hide(resetCard);
     hide(adminCard);
@@ -195,7 +301,6 @@ async function refreshUI() {
     return;
   }
 
-  // 已登录，检查管理员
   hide(resetCard);
   hide(loginCard);
   show(adminCard);
@@ -220,7 +325,6 @@ async function refreshUI() {
     return;
   }
 
-  // 管理员：显示列表
   show(listCard);
   setMsg(adminMsg, "管理员验证通过 ✅", "ok");
   await loadPending();
@@ -238,7 +342,6 @@ async function doLogin() {
 
   setMsg(loginMsg, "正在登录…");
 
-  // 8 秒仍未完成，就提示用户检查插件/隐私设置
   const t = setTimeout(() => {
     setMsg(
       loginMsg,
@@ -260,7 +363,6 @@ async function doLogin() {
 
     setMsg(loginMsg, "登录成功 ✅ 正在检查管理员权限…", "ok");
     await refreshUI();
-
   } catch (e) {
     clearTimeout(t);
     console.error("[doLogin] exception:", e);
@@ -279,7 +381,7 @@ async function doForgotPassword() {
   setMsg(loginMsg, "正在发送找回邮件…");
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: RESET_REDIRECT // 回到 admin.html
+      redirectTo: RESET_REDIRECT,
     });
 
     if (error) {
@@ -321,7 +423,6 @@ async function doSetNewPassword() {
       await supabase.auth.signOut();
       location.href = BASE_URL + "admin.html";
     }, 900);
-
   } catch (e) {
     console.error("[doSetNewPassword] exception:", e);
     setMsg(resetMsg, "更新异常：" + (e?.message || e), "err");
@@ -341,21 +442,45 @@ $("btnReload").addEventListener("click", loadPending);
 
 $("btnSetNewPass").addEventListener("click", doSetNewPassword);
 
+/**
+ * 列表点击：approve/reject + 复制 image_path
+ * - “打开原图”是 <a>，不走这里
+ */
 listEl.addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
+
   const action = btn.dataset.action;
   const id = btn.dataset.id;
 
   if (action === "approve") await approveOrReject(id, "approved");
   if (action === "reject") await approveOrReject(id, "rejected");
+
+  if (action === "copy_path") {
+    const item = document.querySelector(`.pending-item[data-itemid="${id}"]`);
+    const path = item?.dataset?.path || "";
+    const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
+
+    if (!path) {
+      if (rowMsg) {
+        rowMsg.className = "msg err small";
+        rowMsg.textContent = "复制失败：找不到 image_path";
+      }
+      return;
+    }
+
+    const ok = await copyToClipboard(path);
+    if (rowMsg) {
+      rowMsg.className = "msg " + (ok ? "ok" : "err") + " small";
+      rowMsg.textContent = ok ? "已复制 image_path ✅" : "复制失败（浏览器权限限制）";
+    }
+  }
 });
 
 /** ====== auth 状态变化：找回密码事件最关键 ====== */
 supabase.auth.onAuthStateChange((event, session) => {
   console.log("[onAuthStateChange]", event, session);
 
-  // PASSWORD_RECOVERY 时显示 resetCard
   if (event === "PASSWORD_RECOVERY") {
     hide(loginCard);
     hide(adminCard);
@@ -365,7 +490,6 @@ supabase.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  // 其他事件都刷新 UI
   refreshUI();
 });
 
