@@ -9,44 +9,93 @@
 
   <style>
     .wrap { max-width: 1100px; margin: 0 auto; padding: 0 14px; }
-    .card{ background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:14px;
-      padding:18px; margin:16px 0; box-shadow: 0 1px 8px rgba(0,0,0,.03); }
+    .card{
+      background:#fff;
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:18px;
+      margin:16px 0;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
     .muted{ color:#666; }
     .small{ font-size:14px; line-height:1.65; }
     .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
     .spacer{ flex:1; }
 
     label{ display:block; margin: 10px 0 6px; font-weight:600; }
-    input{ width: 320px; max-width: 100%; box-sizing:border-box; padding:10px 12px;
-      border-radius:12px; border:1px solid rgba(0,0,0,.18); outline:none; }
+    input{
+      width: 320px;
+      max-width: 100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.18);
+      outline:none;
+    }
     input:focus{ border-color:#4f46e5; }
 
-    .btn{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px;
-      text-decoration:none; font-weight:700; border:1px solid transparent; user-select:none;
-      cursor:pointer; background:#111827; color:#fff; }
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 14px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:700;
+      border:1px solid transparent;
+      user-select:none;
+      cursor:pointer;
+      background:#111827;
+      color:#fff;
+    }
     .btn:hover{ filter:brightness(0.98); }
-    .btn-outline{ background:#fff; border-color: rgba(0,0,0,.16); color:#111827; }
+    .btn-outline{
+      background:#fff;
+      border-color: rgba(0,0,0,.16);
+      color:#111827;
+    }
     .btn-outline:hover{ background:#f7f7f7; }
     .btn-ok{ background:#16a34a; }
     .btn-bad{ background:#dc2626; }
     .btn-mini{ padding:8px 12px; border-radius:10px; }
 
-    .grid{ display:grid; grid-template-columns: 1fr; gap:12px; }
-    @media (min-width: 920px){ .grid{ grid-template-columns: 1fr 1fr; } }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    @media (min-width: 920px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+    }
 
-    .item{ display:flex; gap:12px; align-items:flex-start; padding:14px;
-      border:1px solid rgba(0,0,0,.10); border-radius:14px; }
+    .item{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      padding:14px;
+      border:1px solid rgba(0,0,0,.10);
+      border-radius:14px;
+    }
 
-    .thumb{ width: 120px; height: 120px; border-radius:12px; background:#f3f4f6;
-      flex: 0 0 auto; object-fit: cover; border:1px solid rgba(0,0,0,.08); }
+    .thumb{
+      width: 120px;
+      height: 120px;
+      border-radius:12px;
+      background:#f3f4f6;
+      flex: 0 0 auto;
+      object-fit: cover;
+      border:1px solid rgba(0,0,0,.08);
+    }
 
     .meta{ min-width: 0; }
     .meta h3{ margin:0 0 6px; font-size:16px; }
+    .kv{ margin: 2px 0; }
     code{ background:#f3f4f6; padding:2px 6px; border-radius:8px; }
     .msg{ margin-top:10px; font-weight:700; }
     .err{ color:#dc2626; }
     .ok{ color:#16a34a; }
     .hidden{ display:none; }
+    .hint{ margin-top:10px; padding:10px 12px; border-radius:12px; background:#f8fafc; border:1px solid rgba(0,0,0,.06); }
   </style>
 </head>
 
@@ -67,21 +116,50 @@
     <!-- 登录卡片 -->
     <div id="loginCard" class="card">
       <h2 style="margin:0 0 8px;">管理员登录</h2>
+
       <div class="row">
         <div>
-          <label>邮箱（Supabase Auth 用户）</label>
-          <input id="email" type="email" placeholder="admin@example.com" />
+          <label for="email">邮箱（Supabase Auth 用户）</label>
+          <input id="email" type="email" autocomplete="email" placeholder="xxx@example.com" />
         </div>
         <div>
-          <label>密码</label>
-          <input id="password" type="password" placeholder="••••••••" />
+          <label for="password">密码</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
         </div>
         <div style="padding-top:30px;">
-          <button id="btnLogin" class="btn">登录</button>
-          <button id="btnForgot" class="btn btn-outline">忘记密码</button>
+          <button id="btnLogin" class="btn" type="button">登录</button>
+        </div>
+        <div style="padding-top:30px;">
+          <button id="btnForgot" class="btn btn-outline" type="button">忘记密码</button>
         </div>
       </div>
+
       <div id="loginMsg" class="msg muted small"></div>
+
+      <div class="hint muted small">
+        说明：这里登录的是 <b>Supabase Auth → Users</b> 里的邮箱/密码用户，不是你登录 supabase.com 控制台的账号密码。<br>
+        如果你卡在“正在登录…”，先关闭广告拦截/隐私插件，再刷新重试。
+      </div>
+    </div>
+
+    <!-- 密码重置卡片（从邮件链接打开本页时会显示） -->
+    <div id="resetCard" class="card hidden">
+      <h2 style="margin:0 0 8px;">设置新密码</h2>
+      <p class="muted small" style="margin:0 0 10px;">
+        你是通过“找回密码邮件”进入的此页面。请输入新密码完成重置。
+      </p>
+
+      <div class="row">
+        <div>
+          <label for="newPassword">新密码</label>
+          <input id="newPassword" type="password" autocomplete="new-password" placeholder="至少 6 位，建议更复杂" />
+        </div>
+        <div style="padding-top:30px;">
+          <button id="btnSetNewPass" class="btn btn-ok" type="button">更新密码</button>
+        </div>
+      </div>
+
+      <div id="resetMsg" class="msg muted small"></div>
     </div>
 
     <!-- 顶部状态卡片 -->
@@ -93,8 +171,8 @@
           <div id="role" class="muted small"></div>
         </div>
         <div class="spacer"></div>
-        <button id="btnReload" class="btn btn-outline">刷新待审列表</button>
-        <button id="btnLogout" class="btn">退出登录</button>
+        <button id="btnReload" class="btn btn-outline" type="button">刷新待审列表</button>
+        <button id="btnLogout" class="btn" type="button">退出登录</button>
       </div>
       <div id="adminMsg" class="msg muted small"></div>
     </div>
@@ -109,6 +187,7 @@
 
   <footer class="footer">© Zypher</footer>
 
-  <script type="module" src="./js/admin.js?v=20260202"></script>
+  <!-- ✅ 强制加版本号避免缓存：每次改代码改这里的 v -->
+  <script type="module" src="./js/admin.js?v=202602022400"></script>
 </body>
 </html>
