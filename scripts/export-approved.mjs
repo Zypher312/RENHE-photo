@@ -7,13 +7,17 @@ const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const BUCKET = (process.env.SUPABASE_BUCKET || "photos").trim();
 const TABLE = (process.env.SUPABASE_DB_TABLE || "photos").trim();
 
-
 if (!SUPABASE_URL || !KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in secrets.");
 }
 
+// ✅ 安全检查（不泄露 key 内容）
+console.log("[env] url=", SUPABASE_URL);
+console.log("[env] bucket=", JSON.stringify(BUCKET), "table=", JSON.stringify(TABLE));
+console.log("[env] key_len=", KEY.length, "has_newline=", KEY.includes("\n"));
+
 const supabase = createClient(SUPABASE_URL, KEY, {
-  auth: { persistSession: false, autoRefreshToken: false }
+  auth: { persistSession: false, autoRefreshToken: false },
 });
 
 function ensureDir(p) {
@@ -39,12 +43,10 @@ function guessYear(row) {
 
 function getExtFromPath(p) {
   const ext = path.extname(p || "").toLowerCase().replace(".", "");
-  if (ext) return ext;
-  return "jpg";
+  return ext || "jpg";
 }
 
 async function listApproved() {
-  // 拉所有 approved；如果你的数据很多，后面可以做分页
   const { data, error } = await supabase
     .from(TABLE)
     .select("id,image_path,uploader_name,taken_at,people,category,year,status,created_at")
@@ -55,10 +57,23 @@ async function listApproved() {
   return data || [];
 }
 
-async function downloadObject(image_path) {
-  const { data, error } = await supabase.storage.from(BUCKET).download(image_path);
+// ✅ 改：用 signed url + fetch 下载（比 storage.download 更稳）
+async function downloadObjectSigned(image_path) {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(image_path, 60); // 60 秒有效
+
   if (error) throw error;
-  const ab = await data.arrayBuffer();
+  if (!data?.signedUrl) throw new Error("createSignedUrl returned empty signedUrl");
+
+  const res = await fetch(data.signedUrl);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(
+      `fetch signedUrl failed: ${res.status} ${res.statusText} :: ${txt.slice(0, 200)}`
+    );
+  }
+  const ab = await res.arrayBuffer();
   return Buffer.from(ab);
 }
 
@@ -72,28 +87,25 @@ async function main() {
   const manifest = [];
 
   for (const row of approved) {
-    const imagePath = row.image_path;
+    const imagePath = (row.image_path || "").trim();
     if (!imagePath) continue;
 
     const year = guessYear(row);
-    const categorySlug = safeSlug(row.category || "other"); // 你也可以改成 row.category_slug
+    const categorySlug = safeSlug(row.category || "other");
     const ext = getExtFromPath(imagePath);
 
-    // 输出文件名用 row.id 最稳（防重复）
     const outDir = path.join("assets", "full", year, categorySlug);
     ensureDir(outDir);
     const outFile = path.join(outDir, `${row.id}.${ext}`);
 
-    // 如果已经存在就不重复下载
     if (!fs.existsSync(outFile)) {
       console.log(`download: ${imagePath} -> ${outFile}`);
-      const buf = await downloadObject(imagePath);
+      const buf = await downloadObjectSigned(imagePath);
       fs.writeFileSync(outFile, buf);
     } else {
       console.log(`skip existing: ${outFile}`);
     }
 
-    // 写 manifest：前台只认这里
     manifest.push({
       id: row.id,
       year,
@@ -101,11 +113,10 @@ async function main() {
       uploader_name: row.uploader_name || "",
       taken_at: row.taken_at || "",
       people: row.people || "",
-      src: outFile.replace(/\\/g, "/"), // windows path -> url path
+      src: outFile.replace(/\\/g, "/"),
     });
   }
 
-  // 按 year 降序、再按 taken_at 降序
   manifest.sort((a, b) => {
     if (a.year !== b.year) return String(b.year).localeCompare(String(a.year));
     return String(b.taken_at).localeCompare(String(a.taken_at));
