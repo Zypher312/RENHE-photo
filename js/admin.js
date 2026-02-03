@@ -6,7 +6,7 @@ const SUPABASE_KEY = "sb_publishable_MaLbSbI140CBstTTP2ICmw_R8XEZNyy";
 const BUCKET = "photos";
 
 /** GitHub Pages 子路径兼容：用于 reset password redirectTo */
-const BASE_URL = new URL(".", location.href).href; // e.g. https://xxx.github.io/RENHE-photo/
+const BASE_URL = new URL(".", location.href).href;
 const RESET_REDIRECT = BASE_URL + "admin.html";
 
 /** supabase client：显式打开 session 持久化 + url 检测（找回密码会用到） */
@@ -66,10 +66,8 @@ function publicUrl(pathInBucket) {
 }
 
 function fmtDateYMD(s) {
-  // s 可能是 yyyy-mm-dd 或 ISO
   if (!s) return "";
   try {
-    // yyyy-mm-dd 直接返回更直观
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     const d = new Date(s);
     if (Number.isNaN(d.getTime())) return String(s);
@@ -87,7 +85,6 @@ async function copyToClipboard(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // 兼容旧浏览器
     try {
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -117,7 +114,7 @@ async function isAdminByDB(userId) {
   return !!data;
 }
 
-/** ====== 渲染：单条卡片（新布局） ====== */
+/** ====== 渲染：单条卡片（你的新布局） ====== */
 function renderPendingItem(row) {
   const img = publicUrl(row.image_path);
   const uploader = row.uploader_name || "（未填）";
@@ -128,10 +125,9 @@ function renderPendingItem(row) {
   const path = row.image_path || "";
 
   const item = document.createElement("div");
-  item.className = "pending-item";
+  // ✅ 同时保留旧 class=item，避免你 CSS 里只写了 .item
+  item.className = "item pending-item";
   item.dataset.itemid = row.id;
-
-  // 用 data-* 存一下，后面复制/打开原图/错误回退用
   item.dataset.img = img;
   item.dataset.path = path;
 
@@ -181,7 +177,7 @@ function renderPendingItem(row) {
     </div>
   `;
 
-  // 图片加载失败：换成友好提示，不留破图标
+  // 图片加载失败：给提示
   const imgEl = item.querySelector(".preview-img");
   imgEl.addEventListener("error", () => {
     imgEl.remove();
@@ -196,14 +192,21 @@ function renderPendingItem(row) {
         你仍可使用“打开原图”查看。
       </div>
     `;
-    item.querySelector(".preview").appendChild(ph);
+    item.querySelector(".preview")?.appendChild(ph);
   });
 
   return item;
 }
 
-/** ====== 加载 pending 列表 ====== */
+/** ====== ✅ 防并发/防重复：loadPending 请求序号 + 去重 ====== */
+let loadSeq = 0;
+
 async function loadPending() {
+  const seq = ++loadSeq;
+
+  if (!listEl) return;
+
+  // 先清空显示“加载中”
   listEl.innerHTML = "";
   hide(emptyEl);
   setMsg(adminMsg, "正在加载待审列表…");
@@ -213,6 +216,9 @@ async function loadPending() {
     .select("id,image_path,uploader_name,taken_at,people,category,year,status,created_at")
     .eq("status", "pending")
     .order("created_at", { ascending: true });
+
+  // ✅ 如果期间发起了更新的 loadPending，则丢弃旧结果，避免“渲染两遍”
+  if (seq !== loadSeq) return;
 
   if (error) {
     setMsg(
@@ -230,15 +236,27 @@ async function loadPending() {
     return;
   }
 
-  setMsg(adminMsg, `已加载 ${data.length} 条待审投稿。`, "ok");
-
+  // ✅ 前端去重：按 image_path（DB 真重复也只显示一条）
+  const seen = new Set();
+  const unique = [];
   for (const row of data) {
+    const key = row.image_path || row.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+
+  setMsg(adminMsg, `已加载 ${unique.length} 条待审投稿。`, "ok");
+  for (const row of unique) {
     listEl.appendChild(renderPendingItem(row));
   }
 }
 
-/** ====== 审核操作 ====== */
-async function approveOrReject(id, status) {
+/** ====== 审核操作（防连点） ====== */
+async function approveOrReject(id, status, btnEl) {
+  // 防止双击重复提交
+  if (btnEl) btnEl.disabled = true;
+
   const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
   if (rowMsg) {
     rowMsg.className = "msg muted small";
@@ -251,6 +269,7 @@ async function approveOrReject(id, status) {
     .eq("id", id);
 
   if (error) {
+    if (btnEl) btnEl.disabled = false;
     if (rowMsg) {
       rowMsg.className = "msg err small";
       rowMsg.textContent = "操作失败：" + error.message;
@@ -264,8 +283,9 @@ async function approveOrReject(id, status) {
     rowMsg.textContent = "已更新为 " + status + " ✅";
   }
 
+  // 移除卡片（只移除当前 id 的）
   setTimeout(() => {
-    const item = document.querySelector(`.pending-item[data-itemid="${id}"]`);
+    const item = document.querySelector(`.pending-item[data-itemid="${id}"], .item[data-itemid="${id}"]`);
     if (item) item.remove();
     if (!listEl.children.length) show(emptyEl);
   }, 650);
@@ -273,67 +293,90 @@ async function approveOrReject(id, status) {
   return true;
 }
 
-/** ====== 会话 UI 切换 ====== */
-async function refreshUI() {
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log("[refreshUI] session:", session);
+/** ====== ✅ refreshUI 串行化，避免 onAuthStateChange 触发多次导致重复加载 ====== */
+let refreshPromise = null;
+let lastAdminOkUserId = null;
 
-  // 处于密码找回流程时，显示 resetCard（supabase 会把 session 注入）
-  const urlParams = new URLSearchParams(location.search);
-  const hash = location.hash || "";
-  const isRecovery = hash.includes("recovery") || urlParams.get("type") === "recovery";
+async function refreshUI({ forceLoad = false } = {}) {
+  if (refreshPromise) return refreshPromise;
 
-  if (isRecovery) {
-    hide(loginCard);
-    hide(adminCard);
-    hide(listCard);
-    show(resetCard);
-    setMsg(resetMsg, "请设置新密码。设置后将自动退出，需要用新密码重新登录。");
-    return;
-  }
+  refreshPromise = (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("[refreshUI] session:", session);
 
-  if (!session) {
-    show(loginCard);
+    const urlParams = new URLSearchParams(location.search);
+    const hash = location.hash || "";
+    const isRecovery = hash.includes("recovery") || urlParams.get("type") === "recovery";
+
+    if (isRecovery) {
+      hide(loginCard);
+      hide(adminCard);
+      hide(listCard);
+      show(resetCard);
+      setMsg(resetMsg, "请设置新密码。设置后将自动退出，需要用新密码重新登录。");
+      return;
+    }
+
+    if (!session) {
+      // 未登录
+      lastAdminOkUserId = null;
+      show(loginCard);
+      hide(resetCard);
+      hide(adminCard);
+      hide(listCard);
+      setMsg(loginMsg, "未登录。请先登录管理员账号。");
+      return;
+    }
+
+    // 已登录
     hide(resetCard);
-    hide(adminCard);
-    hide(listCard);
-    setMsg(loginMsg, "未登录。请先登录管理员账号。");
-    return;
-  }
+    hide(loginCard);
+    show(adminCard);
 
-  hide(resetCard);
-  hide(loginCard);
-  show(adminCard);
+    const user = session.user;
+    if (whoEl) whoEl.textContent = user.email || user.id;
+    if (roleEl) roleEl.textContent = "user_id: " + user.id;
 
-  const user = session.user;
-  whoEl.textContent = user.email || user.id;
-  roleEl.textContent = "user_id: " + user.id;
+    // 管理员校验
+    let admin = false;
+    try {
+      admin = await isAdminByDB(user.id);
+    } catch (e) {
+      lastAdminOkUserId = null;
+      hide(listCard);
+      setMsg(adminMsg, "检查管理员失败：" + (e?.message || e), "err");
+      console.error("[isAdminByDB] exception:", e);
+      return;
+    }
 
-  let admin = false;
-  try {
-    admin = await isAdminByDB(user.id);
-  } catch (e) {
-    hide(listCard);
-    setMsg(adminMsg, "检查管理员失败：" + (e?.message || e), "err");
-    console.error("[isAdminByDB] exception:", e);
-    return;
-  }
+    if (!admin) {
+      lastAdminOkUserId = null;
+      hide(listCard);
+      setMsg(adminMsg, "你已登录，但不是管理员（admins 表中没有你的 user_id）。", "err");
+      return;
+    }
 
-  if (!admin) {
-    hide(listCard);
-    setMsg(adminMsg, "你已登录，但不是管理员（admins 表中没有你的 user_id）。", "err");
-    return;
-  }
+    // ✅ 管理员通过：只有在“首次通过/用户变化/强制刷新”时才加载列表
+    show(listCard);
+    setMsg(adminMsg, "管理员验证通过 ✅", "ok");
 
-  show(listCard);
-  setMsg(adminMsg, "管理员验证通过 ✅", "ok");
-  await loadPending();
+    const needLoad = forceLoad || (lastAdminOkUserId !== user.id) || (listEl && listEl.children.length === 0);
+    lastAdminOkUserId = user.id;
+
+    if (needLoad) {
+      await loadPending();
+    }
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 }
 
 /** ====== 登录（带 try/catch + 超时提示） ====== */
 async function doLogin() {
-  const email = emailEl.value.trim();
-  const password = passEl.value;
+  const email = (emailEl?.value || "").trim();
+  const password = passEl?.value || "";
 
   if (!email || !password) {
     setMsg(loginMsg, "请输入邮箱和密码。", "err");
@@ -362,7 +405,7 @@ async function doLogin() {
     }
 
     setMsg(loginMsg, "登录成功 ✅ 正在检查管理员权限…", "ok");
-    await refreshUI();
+    await refreshUI({ forceLoad: true });
   } catch (e) {
     clearTimeout(t);
     console.error("[doLogin] exception:", e);
@@ -372,7 +415,7 @@ async function doLogin() {
 
 /** ====== 忘记密码：发邮件 ====== */
 async function doForgotPassword() {
-  const email = emailEl.value.trim();
+  const email = (emailEl?.value || "").trim();
   if (!email) {
     setMsg(loginMsg, "请输入邮箱后再点“忘记密码”。", "err");
     return;
@@ -390,11 +433,7 @@ async function doForgotPassword() {
       return;
     }
 
-    setMsg(
-      loginMsg,
-      "已发送找回邮件 ✅ 请去邮箱打开链接完成重置（可能在垃圾箱）。",
-      "ok"
-    );
+    setMsg(loginMsg, "已发送找回邮件 ✅ 请去邮箱打开链接完成重置（可能在垃圾箱）。", "ok");
   } catch (e) {
     console.error("[doForgotPassword] exception:", e);
     setMsg(loginMsg, "发送异常：" + (e?.message || e), "err");
@@ -403,7 +442,7 @@ async function doForgotPassword() {
 
 /** ====== 找回后设置新密码 ====== */
 async function doSetNewPassword() {
-  const newPassword = (newPassEl.value || "").trim();
+  const newPassword = (newPassEl?.value || "").trim();
   if (newPassword.length < 6) {
     setMsg(resetMsg, "新密码至少 6 位。", "err");
     return;
@@ -430,34 +469,33 @@ async function doSetNewPassword() {
 }
 
 /** ====== 事件绑定 ====== */
-$("btnLogin").addEventListener("click", doLogin);
-$("btnForgot").addEventListener("click", doForgotPassword);
+$("btnLogin")?.addEventListener("click", doLogin);
+$("btnForgot")?.addEventListener("click", doForgotPassword);
 
-$("btnLogout").addEventListener("click", async () => {
+$("btnLogout")?.addEventListener("click", async () => {
   await supabase.auth.signOut();
-  await refreshUI();
+  await refreshUI({ forceLoad: false });
 });
 
-$("btnReload").addEventListener("click", loadPending);
+$("btnReload")?.addEventListener("click", () => loadPending());
 
-$("btnSetNewPass").addEventListener("click", doSetNewPassword);
+$("btnSetNewPass")?.addEventListener("click", doSetNewPassword);
 
 /**
  * 列表点击：approve/reject + 复制 image_path
- * - “打开原图”是 <a>，不走这里
  */
-listEl.addEventListener("click", async (e) => {
+listEl?.addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
 
   const action = btn.dataset.action;
   const id = btn.dataset.id;
 
-  if (action === "approve") await approveOrReject(id, "approved");
-  if (action === "reject") await approveOrReject(id, "rejected");
+  if (action === "approve") await approveOrReject(id, "approved", btn);
+  if (action === "reject") await approveOrReject(id, "rejected", btn);
 
   if (action === "copy_path") {
-    const item = document.querySelector(`.pending-item[data-itemid="${id}"]`);
+    const item = document.querySelector(`.pending-item[data-itemid="${id}"], .item[data-itemid="${id}"]`);
     const path = item?.dataset?.path || "";
     const rowMsg = document.querySelector(`[data-rowmsg="${id}"]`);
 
@@ -477,7 +515,7 @@ listEl.addEventListener("click", async (e) => {
   }
 });
 
-/** ====== auth 状态变化：找回密码事件最关键 ====== */
+/** ====== auth 状态变化：避免频繁重复加载 ====== */
 supabase.auth.onAuthStateChange((event, session) => {
   console.log("[onAuthStateChange]", event, session);
 
@@ -490,8 +528,15 @@ supabase.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  refreshUI();
+  // INITIAL_SESSION / SIGNED_IN：强制加载一次列表
+  if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+    refreshUI({ forceLoad: true });
+    return;
+  }
+
+  // TOKEN_REFRESHED / USER_UPDATED：只刷新 UI，不强制重载列表（避免重复）
+  refreshUI({ forceLoad: false });
 });
 
 /** 初次加载 */
-refreshUI();
+refreshUI({ forceLoad: true });
