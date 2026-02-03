@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
+const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const BUCKET = process.env.SUPABASE_BUCKET || "photos";
 const TABLE = process.env.SUPABASE_DB_TABLE || "photos";
 
