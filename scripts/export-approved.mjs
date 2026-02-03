@@ -4,8 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
 const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const BUCKET = process.env.SUPABASE_BUCKET || "photos";
-const TABLE = process.env.SUPABASE_DB_TABLE || "photos";
+const BUCKET = (process.env.SUPABASE_BUCKET || "photos").trim();
+const TABLE = (process.env.SUPABASE_DB_TABLE || "photos").trim();
+
 
 if (!SUPABASE_URL || !KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in secrets.");
