@@ -1,16 +1,12 @@
 name: Export approved photos to assets
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   schedule:
-    - cron: "*/30 * * * *"  # 不想自动跑就删掉这一段
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: write
-
-concurrency:
-  group: export-approved
-  cancel-in-progress: false
 
 jobs:
   export:
@@ -27,15 +23,6 @@ jobs:
       - name: Install deps
         run: npm init -y && npm i @supabase/supabase-js
 
-      # ✅ 不泄露密钥：只打印长度 + 类型判断
-      - name: Sanity check env (safe)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-          SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
-        run: node -e "const k=(process.env.SUPABASE_SERVICE_ROLE_KEY||'').trim(); const t=k.startsWith('eyJ')?'legacy_jwt_service_role':(k.startsWith('sb_secret_')?'sb_secret':(k.startsWith('sb_publishable_')?'sb_publishable':'unknown')); console.log('URL_LEN', (process.env.SUPABASE_URL||'').trim().length); console.log('KEY_LEN', k.length); console.log('KEY_TYPE', t); console.log('BUCKET', process.env.SUPABASE_BUCKET||''); console.log('TABLE', process.env.SUPABASE_DB_TABLE||'');"
-
       - name: Export approved
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -48,7 +35,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add assets/manifest.json assets/full assets/thumbs || true
+          git add assets/manifest.json assets/full || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
