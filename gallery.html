@@ -10,91 +10,301 @@
 </head>
 
 <body>
-  <header>
-    <nav>
-      <a href="index.html">首页</a>
-      <a href="gallery.html">画廊</a>
-      <a href="upload.html">投稿/上传</a>
-    </nav>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a class="brand-link" href="index.html">RENHE Photo</a>
+      </div>
+      <nav class="nav">
+        <a href="index.html">首页</a>
+        <a class="active" href="gallery.html">画廊</a>
+        <a href="upload.html">投稿/上传</a>
+        <a href="admin.html">管理/审核</a>
+      </nav>
+    </div>
   </header>
 
-  <main>
-    <h1>画廊</h1>
-    <p>只需要把高清图上传到投稿表单，缩略图和画廊会自动更新。</p>
-    </p>上传时请输入图片上传者、图片拍摄的具体时间、图片中的人物名称、图片内容，以便开发者整理。</p>
+  <main class="container">
+    <div class="page-head">
+      <h1>画廊</h1>
+      <p class="muted">
+        画廊数据来自 <code>assets/manifest.json</code>（由 GitHub Actions 导出 approved 图片生成）。
+        如果你启用了缩略图工作流，会优先加载 <code>assets/thumbs</code>，否则自动回退到原图。
+      </p>
+    </div>
 
-    <div id="gallery" class="grid"></div>
+    <div class="toolbar">
+      <div class="years" id="years"></div>
+      <div class="searchbox">
+        <input id="q" type="search" placeholder="搜索：人物/分类/上传者/年份…" autocomplete="off" />
+      </div>
+    </div>
 
-    <p id="gallery-status" style="color:#666;"></p>
+    <p id="gallery-status" class="status muted"></p>
+
+    <div id="sections"></div>
   </main>
 
   <footer class="footer">
-    © Zypher
+    <div class="container">© Zypher</div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/lightbox2@2.11.4/dist/js/lightbox.min.js"></script>
+
   <script>
-    async function loadGallery() {
-      const status = document.getElementById('gallery-status');
-      const container = document.getElementById('gallery');
-      status.textContent = '正在加载...';
+    // Lightbox 基本设置（可选）
+    if (window.lightbox) {
+      lightbox.option({
+        resizeDuration: 200,
+        wrapAround: true,
+        fadeDuration: 200,
+        imageFadeDuration: 200
+      });
+    }
 
-      const res = await fetch('assets/manifest.json', { cache: 'no-store' });
-      if (!res.ok) {
-        status.textContent = '画廊清单不存在：请确认 Actions 已生成 assets/manifest.json。';
-        return;
-      }
+    function safeText(v) {
+      return (v === null || v === undefined) ? "" : String(v);
+    }
 
-      const items = await res.json();
-      if (!Array.isArray(items) || items.length === 0) {
-        status.textContent = '还没有图片：请把高清图上传到 assets/full/。';
-        return;
-      }
+    function parseDate(s) {
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
 
-      // 兼容两种 manifest：
-      // A) 新版对象数组：[{full, thumb, title}, ...]
-      // B) 旧版字符串数组：["a.jpg","b.png", ...]
-      container.innerHTML = '';
+    function byTakenDesc(a, b) {
+      const da = parseDate(a.taken_at) || parseDate(a.created_at);
+      const db = parseDate(b.taken_at) || parseDate(b.created_at);
+      if (da && db) return db - da;
+      if (da && !db) return -1;
+      if (!da && db) return 1;
+      return safeText(b.id).localeCompare(safeText(a.id));
+    }
 
-      let count = 0;
+    function groupByYear(items) {
+      const map = new Map();
       for (const it of items) {
-        let full, thumb, title;
+        const y = safeText(it.year || "unknown");
+        if (!map.has(y)) map.set(y, []);
+        map.get(y).push(it);
+      }
+      // year 降序（unknown 放最后）
+      const years = Array.from(map.keys()).sort((a, b) => {
+        if (a === "unknown") return 1;
+        if (b === "unknown") return -1;
+        return String(b).localeCompare(String(a));
+      });
+      return { map, years };
+    }
 
-        if (typeof it === 'string') {
-          // 旧格式
-          full = `assets/full/${it}`;
-          thumb = `assets/thumbs/${it}`;
-          title = it;
-        } else if (it && typeof it === 'object') {
-          // 新格式（Actions 生成的）
-          full = it.full;
-          thumb = it.thumb;
-          title = it.title || (it.full ? it.full.split('/').pop() : 'photo');
-        } else {
-          continue;
+    function buildThumbCandidates(src, explicitThumb) {
+      const candidates = [];
+      if (explicitThumb) candidates.push(explicitThumb);
+
+      // 1) 你的 full 导出结构：assets/full/... -> assets/thumbs/...
+      if (src && src.includes("/full/")) {
+        candidates.push(src.replace("/full/", "/thumbs/"));
+      }
+
+      // 2) 兼容：assets/thumbs/<basename>
+      if (src) {
+        const base = src.split("/").pop();
+        if (base) candidates.push("assets/thumbs/" + base);
+      }
+
+      // 3) 最后回退到原图
+      if (src) candidates.push(src);
+
+      // 去重
+      return Array.from(new Set(candidates));
+    }
+
+    function setImgWithFallback(img, candidates) {
+      let idx = 0;
+      function tryNext() {
+        if (idx >= candidates.length) return;
+        img.src = candidates[idx++];
+      }
+      img.onerror = () => tryNext();
+      tryNext();
+    }
+
+    function makeCard(it) {
+      // 你现在 Actions 导出的 manifest：{ id, year, category, uploader_name, taken_at, people, src }
+      const src = safeText(it.src);
+      const titleParts = [
+        safeText(it.year),
+        safeText(it.category),
+        safeText(it.taken_at)
+      ].filter(Boolean);
+      const title = titleParts.join(" · ") || "photo";
+
+      const a = document.createElement("a");
+      a.className = "card";
+      a.href = src;
+      a.setAttribute("data-lightbox", "gallery");
+      a.setAttribute("data-title", title);
+
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = title;
+
+      const thumbCandidates = buildThumbCandidates(src, it.thumb);
+      setImgWithFallback(img, thumbCandidates);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      const line1 = document.createElement("div");
+      line1.className = "meta-line";
+      line1.textContent = [
+        safeText(it.category || "未分类"),
+        safeText(it.taken_at || "")
+      ].filter(Boolean).join(" · ");
+
+      const line2 = document.createElement("div");
+      line2.className = "meta-line muted";
+      const uploader = safeText(it.uploader_name || "");
+      const people = safeText(it.people || "");
+      line2.textContent = [
+        uploader ? ("上传者：" + uploader) : "",
+        people ? ("人物：" + people) : ""
+      ].filter(Boolean).join("  |  ");
+
+      meta.appendChild(line1);
+      meta.appendChild(line2);
+
+      a.appendChild(img);
+      a.appendChild(meta);
+      return a;
+    }
+
+    function buildYearNav(years) {
+      const yearsBox = document.getElementById("years");
+      yearsBox.innerHTML = "";
+
+      const allBtn = document.createElement("button");
+      allBtn.className = "chip active";
+      allBtn.textContent = "全部";
+      allBtn.dataset.year = "";
+      yearsBox.appendChild(allBtn);
+
+      for (const y of years) {
+        const btn = document.createElement("button");
+        btn.className = "chip";
+        btn.textContent = y;
+        btn.dataset.year = y;
+        yearsBox.appendChild(btn);
+      }
+
+      yearsBox.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-year]");
+        if (!btn) return;
+
+        yearsBox.querySelectorAll(".chip").forEach(x => x.classList.remove("active"));
+        btn.classList.add("active");
+
+        const targetYear = btn.dataset.year;
+        document.querySelectorAll("[data-section-year]").forEach(sec => {
+          if (!targetYear) {
+            sec.style.display = "";
+          } else {
+            sec.style.display = (sec.dataset.sectionYear === targetYear) ? "" : "none";
+          }
+        });
+
+        // 滚动到该年
+        if (targetYear) {
+          const el = document.getElementById("year-" + targetYear);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    }
+
+    function applySearch(items, q) {
+      const qq = q.trim().toLowerCase();
+      if (!qq) return items;
+      return items.filter(it => {
+        const hay = [
+          it.year, it.category, it.uploader_name, it.people, it.taken_at, it.id
+        ].map(safeText).join(" ").toLowerCase();
+        return hay.includes(qq);
+      });
+    }
+
+    async function loadGallery() {
+      const status = document.getElementById("gallery-status");
+      const sections = document.getElementById("sections");
+      const qInput = document.getElementById("q");
+
+      status.textContent = "正在加载画廊清单…";
+      sections.innerHTML = "";
+
+      const res = await fetch("assets/manifest.json", { cache: "no-store" });
+      if (!res.ok) {
+        status.textContent = "找不到 assets/manifest.json：请确认 Actions 已生成并提交到仓库。";
+        return;
+      }
+
+      const raw = await res.json();
+      if (!Array.isArray(raw) || raw.length === 0) {
+        status.textContent = "manifest.json 为空：还没有 approved 图片可展示。";
+        return;
+      }
+
+      // 只保留有 src 的
+      const itemsAll = raw.filter(it => it && typeof it === "object" && it.src);
+      itemsAll.sort(byTakenDesc);
+
+      function render(q = "") {
+        const items = applySearch(itemsAll, q);
+
+        const { map, years } = groupByYear(items);
+
+        buildYearNav(years);
+
+        sections.innerHTML = "";
+        let total = 0;
+
+        for (const y of years) {
+          const list = map.get(y) || [];
+          list.sort(byTakenDesc);
+
+          const sec = document.createElement("section");
+          sec.className = "year-section";
+          sec.id = "year-" + y;
+          sec.dataset.sectionYear = y;
+
+          const h2 = document.createElement("h2");
+          h2.className = "year-title";
+          h2.textContent = y === "unknown" ? "未知年份" : y;
+
+          const grid = document.createElement("div");
+          grid.className = "grid";
+
+          for (const it of list) {
+            grid.appendChild(makeCard(it));
+            total++;
+          }
+
+          sec.appendChild(h2);
+          sec.appendChild(grid);
+          sections.appendChild(sec);
         }
 
-        const a = document.createElement('a');
-        a.href = full;
-        a.setAttribute('data-lightbox', 'gallery');
-        a.setAttribute('data-title', title);
-
-        const img = document.createElement('img');
-        img.src = thumb;
-        img.loading = 'lazy';
-        img.alt = title;
-
-        a.appendChild(img);
-        container.appendChild(a);
-        count++;
+        status.textContent = `已加载 ${total} 张图片（按年份分组）`;
       }
 
-      status.textContent = `已加载 ${count} 张图片`;
+      render("");
+
+      qInput.addEventListener("input", () => {
+        render(qInput.value);
+      });
     }
 
     loadGallery().catch(err => {
       console.error(err);
-      document.getElementById('gallery-status').textContent = '加载失败：请检查 manifest.json 或图片路径。';
+      document.getElementById("gallery-status").textContent =
+        "加载失败：请检查 manifest.json 格式或图片路径。";
     });
   </script>
 </body>
