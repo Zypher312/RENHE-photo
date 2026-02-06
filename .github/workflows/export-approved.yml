@@ -29,6 +29,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
           SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
+          CLEANUP_MODE: ${{ secrets.CLEANUP_MODE }}
         run: node scripts/export-approved.mjs
 
       - name: Commit changes
@@ -42,3 +43,13 @@ jobs:
           fi
           git commit -m "chore: export approved photos to assets"
           git push
+
+      # ✅ 新增：导出并 push 成功后，再清理 Supabase（可选开关）
+      - name: Cleanup Supabase (optional)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+          SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
+          CLEANUP_MODE: ${{ secrets.CLEANUP_MODE }}
+        run: node scripts/export-approved.mjs --cleanup
