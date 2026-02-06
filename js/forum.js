@@ -1,192 +1,246 @@
-import { supabase } from "./supabase.js"; // 如果你项目用的是 supabaseClient.js，就把这里改成 "./supabaseClient.js"
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-const FORUM_EMAIL = "forum@renhe.local"; // 改成你在 Supabase Auth 创建的那个论坛账号邮箱
+/** ========= 你需要填这两个（用 anon / publishable key） =========
+ *  - URL：Project Settings -> API 里的 Project URL
+ *  - KEY：Publishable / anon key（可以放前端）
+ */
+const SUPABASE_URL = "https://ymfwfruzhzpvexzqwbfq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MaLbSbI140CBstTTP2ICmw_R8XEZNyy";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "renhe-forum-auth",
+  },
+});
+
+/** ====== 论坛配置 ====== */
 const TABLE = "comment";
+const TOPICS = [
+  { key: "daily_news", name: "每日爆料" },
+  { key: "daily_match", name: "每日比赛" },
+  { key: "daily_chat", name: "每日闲聊" },
+  { key: "daily_nsfw", name: "每日涩涩" },
+];
 
-const TOPICS = ["每日爆料", "每日比赛", "每日闲聊", "每日NSFW"];
-
+/** ====== DOM ====== */
 const $ = (id) => document.getElementById(id);
 
-const loginCard = $("loginCard");
-const forumCard = $("forumCard");
+const gateMsg = $("gateMsg");
+const gateCard = $("gateCard");
+const forumArea = $("forumArea");
 
-const passEl = $("pass");
-const loginMsg = $("loginMsg");
+const emailEl = $("email");
+const passwordEl = $("password");
+const btnEnter = $("btnEnter");
+const btnExit = $("btnExit");
 
+const whoami = $("whoami");
 const topicTabs = $("topicTabs");
-const listEl = $("list");
-
 const nicknameEl = $("nickname");
-const dayEl = $("day");
-const contentEl = $("content");
-const sendMsg = $("sendMsg");
+const dayPicker = $("dayPicker");
+const msgList = $("msgList");
+const msgText = $("msgText");
+const btnSend = $("btnSend");
 
-let currentTopic = TOPICS[0];
-let currentDay = toYMD(new Date());
+function show(el) { el && el.classList.remove("hidden"); }
+function hide(el) { el && el.classList.add("hidden"); }
 
-function show(el){ el.classList.remove("hidden"); }
-function hide(el){ el.classList.add("hidden"); }
-
-function setMsg(el, text, cls="muted"){
-  el.className = "msg " + cls + " small";
-  el.textContent = text || "";
+function setMsg(text, cls = "") {
+  if (!gateMsg) return;
+  gateMsg.className = "msg " + cls;
+  gateMsg.textContent = text || "";
 }
 
-function esc(s){
+function escapeHtml(s) {
   return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
-function toYMD(d){
+function todayYMD() {
+  const d = new Date();
   const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,"0");
-  const day = String(d.getDate()).padStart(2,"0");
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
-function renderTabs(){
+let currentTopic = TOPICS[0].key;
+
+async function getSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
+}
+
+function renderTabs() {
+  if (!topicTabs) return;
   topicTabs.innerHTML = "";
-  for (const t of TOPICS){
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-outline btn-mini";
-    btn.textContent = t;
-    if (t === currentTopic) btn.style.borderColor = "#111827";
-    btn.addEventListener("click", async () => {
-      currentTopic = t;
+  for (const t of TOPICS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = t.name;
+    b.className = (t.key === currentTopic) ? "tab active" : "tab";
+    b.addEventListener("click", async () => {
+      currentTopic = t.key;
       renderTabs();
-      await loadPosts();
+      await loadMessages();
     });
-    topicTabs.appendChild(btn);
+    topicTabs.appendChild(b);
   }
 }
 
-async function loadPosts(){
-  listEl.innerHTML = `<div class="muted">加载中...</div>`;
+function renderMessages(rows) {
+  if (!msgList) return;
+  msgList.innerHTML = "";
+
+  if (!rows.length) {
+    const p = document.createElement("div");
+    p.className = "muted";
+    p.textContent = "今天还没人发言。";
+    msgList.appendChild(p);
+    return;
+  }
+
+  for (const r of rows) {
+    const item = document.createElement("div");
+    item.className = "msg-item";
+
+    const nick = escapeHtml(r.nickname || "匿名");
+    const time = escapeHtml(new Date(r.created_at).toLocaleString());
+    const text = escapeHtml(r.content || "");
+
+    item.innerHTML = `
+      <div class="msg-head">
+        <b>${nick}</b>
+        <span class="muted small">${time}</span>
+      </div>
+      <div class="msg-body">${text}</div>
+    `;
+    msgList.appendChild(item);
+  }
+}
+
+async function loadMessages() {
+  if (!msgList) return;
+
+  const day = dayPicker?.value || todayYMD();
+  msgList.innerHTML = `<div class="muted">加载中…</div>`;
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select("id,day,topic,nickname,content,created_at")
-    .eq("day", currentDay)
+    .select("id, topic, day, nickname, content, created_at")
     .eq("topic", currentTopic)
-    .order("created_at", { ascending: true })
-    .limit(200);
+    .eq("day", day)
+    .order("created_at", { ascending: true });
 
-  if (error){
-    listEl.innerHTML = `<div class="msg err small">读取失败：${esc(error.message)}</div>`;
+  if (error) {
+    msgList.innerHTML = "";
+    const d = document.createElement("div");
+    d.className = "msg err";
+    d.textContent = "加载失败：" + error.message;
+    msgList.appendChild(d);
     return;
   }
 
-  if (!data || data.length === 0){
-    listEl.innerHTML = `<div class="muted">今天这个主题还没有人发言。</div>`;
-    return;
-  }
-
-  listEl.innerHTML = data.map(row => {
-    const who = row.nickname ? esc(row.nickname) : "匿名";
-    const time = row.created_at ? new Date(row.created_at).toLocaleString() : "";
-    return `
-      <div class="card" style="margin:10px 0;">
-        <div class="muted small"><b>${who}</b> · ${esc(time)}</div>
-        <div style="margin-top:8px; white-space:pre-wrap;">${esc(row.content)}</div>
-      </div>
-    `;
-  }).join("");
+  renderMessages(data || []);
 }
 
-async function showLogin(){
-  show(loginCard);
-  hide(forumCard);
-  setMsg(loginMsg, "");
-}
-
-async function showForum(){
-  hide(loginCard);
-  show(forumCard);
-
-  dayEl.value = currentDay;
-  renderTabs();
-  await loadPosts();
-}
-
-$("btnLogin").addEventListener("click", async () => {
-  const password = (passEl.value || "").trim();
-  if (!password) {
-    setMsg(loginMsg, "请输入通行证。", "err");
+async function sendMessage() {
+  const session = await getSession();
+  if (!session) {
+    alert("你还没登录。");
     return;
   }
 
-  setMsg(loginMsg, "正在验证通行证...");
+  const day = dayPicker?.value || todayYMD();
+  const nickname = (nicknameEl?.value || "").trim().slice(0, 24);
+  const content = (msgText?.value || "").trim();
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: FORUM_EMAIL,
-    password
-  });
+  if (!content) return alert("请输入内容。");
+  if (content.length > 300) return alert("太长了，建议 300 字以内（更省数据库）。");
 
-  if (error){
-    setMsg(loginMsg, "通行证错误或登录失败：" + error.message, "err");
+  btnSend && (btnSend.disabled = true);
+
+  const row = {
+    topic: currentTopic,
+    day,
+    nickname: nickname || "匿名",
+    content, // emoji/颜文字 OK（UTF-8）
+    // 如果你 comment 表里有 user_id 字段，可以加：
+    // user_id: session.user.id,
+  };
+
+  const { error } = await supabase.from(TABLE).insert(row);
+
+  btnSend && (btnSend.disabled = false);
+
+  if (error) {
+    alert("发送失败：" + error.message);
     return;
   }
 
-  setMsg(loginMsg, "进入成功 ✅", "ok");
-  await showForum();
-});
+  msgText.value = "";
+  await loadMessages();
+}
 
-$("btnLogout").addEventListener("click", async () => {
+/** ====== 登录/退出 ====== */
+async function login() {
+  const email = (emailEl?.value || "").trim();
+  const password = passwordEl?.value || "";
+  if (!email || !password) return setMsg("请输入账号和密码。", "err");
+
+  setMsg("正在登录…");
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return setMsg("登录失败：" + error.message, "err");
+
+  setMsg("登录成功 ✅", "ok");
+  await refreshUI();
+}
+
+async function logout() {
   await supabase.auth.signOut();
-  await showLogin();
-});
+  setMsg("已退出。");
+  await refreshUI();
+}
 
-dayEl.addEventListener("change", async () => {
-  currentDay = dayEl.value || toYMD(new Date());
-  await loadPosts();
-});
+/** ====== 刷新 UI：未登录隐藏论坛 ====== */
+async function refreshUI() {
+  const session = await getSession();
 
-$("btnSend").addEventListener("click", async () => {
-  const content = (contentEl.value || "").trim();
-  const nickname = (nicknameEl.value || "").trim();
-
-  if (!content){
-    setMsg(sendMsg, "请输入内容。", "err");
-    return;
-  }
-  if (content.length > 500){
-    setMsg(sendMsg, "内容太长（最多 500 字）。", "err");
+  if (!session) {
+    hide(forumArea);
+    show(gateCard);
+    hide(btnExit);
+    show(btnEnter);
+    whoami && (whoami.textContent = "");
+    setMsg("请登录进入论坛。");
     return;
   }
 
-  setMsg(sendMsg, "发送中...");
+  // 已登录
+  show(forumArea);
+  show(gateCard); // 你也可以改为 hide(gateCard) 只留退出按钮
+  show(btnExit);
+  show(btnEnter);
 
-  const { error } = await supabase
-    .from(TABLE)
-    .insert({
-      day: currentDay,
-      topic: currentTopic,
-      nickname: nickname || null,
-      content
-    });
+  whoami && (whoami.textContent = `已登录：${session.user.email}`);
 
-  if (error){
-    setMsg(sendMsg, "发送失败：" + error.message, "err");
-    return;
-  }
+  if (dayPicker && !dayPicker.value) dayPicker.value = todayYMD();
+  renderTabs();
+  await loadMessages();
+}
 
-  contentEl.value = "";
-  setMsg(sendMsg, "已发送 ✅", "ok");
-  await loadPosts();
-});
+/** ====== 绑定事件 ====== */
+btnEnter?.addEventListener("click", login);
+btnExit?.addEventListener("click", logout);
+btnSend?.addEventListener("click", sendMessage);
+dayPicker?.addEventListener("change", loadMessages);
 
-(async function init(){
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) await showForum();
-  else await showLogin();
-
-  supabase.auth.onAuthStateChange(async (_e, s) => {
-    if (s) await showForum();
-    else await showLogin();
-  });
-})();
+supabase.auth.onAuthStateChange(() => refreshUI());
+refreshUI();
