@@ -2,22 +2,51 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const BUCKET = process.env.SUPABASE_BUCKET || "photos";
-const TABLE = process.env.SUPABASE_DB_TABLE || "photos";
+/**
+ * Env (required)
+ * - SUPABASE_URL
+ * - SUPABASE_SERVICE_ROLE_KEY
+ *
+ * Env (optional)
+ * - SUPABASE_BUCKET (default: photos)
+ * - SUPABASE_DB_TABLE (default: photos)
+ *
+ * Cleanup (optional)
+ * - CLEANUP_MODE: none | db_only | db_and_storage
+ * - CLEANUP_DRY_RUN: true/false (default: true)
+ *
+ * CLI:
+ * - node scripts/export-approved.mjs                -> export only (default)
+ * - node scripts/export-approved.mjs --cleanup      -> export then cleanup (optional)
+ * - node scripts/export-approved.mjs --cleanup-only -> cleanup only (uses assets/manifest.json)
+ */
 
-const CLEANUP_MODE = String(process.env.CLEANUP_MODE || "none").trim().toLowerCase();
-const ARGS = new Set(process.argv.slice(2));
-const CLEANUP_ONLY = ARGS.has("--cleanup");
+const args = new Set(process.argv.slice(2));
+const DO_CLEANUP = args.has("--cleanup") || args.has("--cleanup-only");
+const CLEANUP_ONLY = args.has("--cleanup-only");
 
-// 仅当你显式把 CLEANUP_MODE 设为 db_only / db_and_storage 才会触发清理
-const cleanupDB = CLEANUP_MODE === "db_only" || CLEANUP_MODE === "db_and_storage";
-const cleanupStorage = CLEANUP_MODE === "db_and_storage";
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
+const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+const BUCKET = (process.env.SUPABASE_BUCKET || "photos").trim();
+const TABLE = (process.env.SUPABASE_DB_TABLE || "photos").trim();
+
+function parseBool(v, defaultValue = false) {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return defaultValue;
+  return ["1", "true", "yes", "y", "on"].includes(s);
+}
+
+const CLEANUP_MODE = (process.env.CLEANUP_MODE || "none").trim().toLowerCase();
+const CLEANUP_DRY_RUN = parseBool(process.env.CLEANUP_DRY_RUN, true); // 默认 dry-run 更安全
 
 if (!SUPABASE_URL || !KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in secrets.");
 }
+
+// 安全打印（不泄露 key 内容）
+console.log("[env] url=", SUPABASE_URL);
+console.log("[env] bucket=", JSON.stringify(BUCKET), "table=", JSON.stringify(TABLE));
+console.log("[env] key_len=", KEY.length, "has_newline=", KEY.includes("\n"));
 
 const supabase = createClient(SUPABASE_URL, KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -48,23 +77,7 @@ function guessYear(row) {
 
 function getExtFromPath(p) {
   const ext = path.extname(p || "").toLowerCase().replace(".", "");
-  if (ext) return ext;
-  return "jpg";
-}
-
-function readJsonIfExists(p) {
-  try {
-    if (!fs.existsSync(p)) return null;
-    return JSON.parse(fs.readFileSync(p, "utf-8"));
-  } catch {
-    return null;
-  }
-}
-
-function chunk(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+  return ext || "jpg";
 }
 
 async function listApproved() {
@@ -78,6 +91,7 @@ async function listApproved() {
   return data || [];
 }
 
+// 维持你原本的下载方式：storage.download
 async function downloadObject(image_path) {
   const { data, error } = await supabase.storage.from(BUCKET).download(image_path);
   if (error) throw error;
@@ -85,79 +99,137 @@ async function downloadObject(image_path) {
   return Buffer.from(ab);
 }
 
-async function removeStorageObjects(paths) {
-  // Supabase remove 有时遇到不存在会整批报错，所以做“先批量，失败则逐个”的容错
-  const unique = Array.from(new Set(paths.filter(Boolean)));
-
-  for (const batch of chunk(unique, 100)) {
-    const { error } = await supabase.storage.from(BUCKET).remove(batch);
-    if (!error) {
-      console.log(`[cleanup] removed ${batch.length} storage objects (batch)`);
-      continue;
-    }
-
-    // 如果批量失败（常见是夹杂 404），改为逐个删除，404 忽略
-    console.log(`[cleanup] batch remove failed, fallback to single removes. reason: ${error.message || error}`);
-
-    for (const p of batch) {
-      const { error: e2 } = await supabase.storage.from(BUCKET).remove([p]);
-      if (!e2) {
-        console.log(`[cleanup] removed: ${p}`);
-        continue;
-      }
-      const code = e2.statusCode || e2.status || "";
-      const msg = String(e2.message || e2);
-      if (code === 404 || msg.toLowerCase().includes("not found")) {
-        console.log(`[cleanup] already missing (ignore): ${p}`);
-        continue;
-      }
-      throw e2;
-    }
+function readManifestSafe() {
+  const p = "assets/manifest.json";
+  if (!fs.existsSync(p)) return [];
+  try {
+    const raw = fs.readFileSync(p, "utf-8");
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
   }
 }
 
-async function deleteDbRows(ids) {
-  const unique = Array.from(new Set(ids.filter(Boolean)));
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
-  for (const batch of chunk(unique, 200)) {
-    const { error } = await supabase.from(TABLE).delete().in("id", batch);
-    if (error) throw error;
-    console.log(`[cleanup] deleted ${batch.length} db rows (batch)`);
+function isObjectNotFoundError(e) {
+  const msg = String(e?.message || "").toLowerCase();
+  const code = String(e?.statusCode || e?.status || "").toLowerCase();
+  return msg.includes("not found") || msg.includes("object not found") || code === "404";
+}
+
+async function cleanupFromManifest() {
+  if (!DO_CLEANUP) return;
+
+  console.log("[cleanup] mode=", CLEANUP_MODE, "dry_run=", CLEANUP_DRY_RUN);
+
+  const allowed = new Set(["none", "db_only", "db_and_storage"]);
+  if (!allowed.has(CLEANUP_MODE)) {
+    throw new Error(`Invalid CLEANUP_MODE="${CLEANUP_MODE}". Use: none | db_only | db_and_storage`);
   }
+  if (CLEANUP_MODE === "none") {
+    console.log("[cleanup] CLEANUP_MODE is 'none'. Skip cleanup.");
+    return;
+  }
+
+  const manifest = readManifestSafe();
+  if (!manifest.length) {
+    console.log("[cleanup] manifest is empty. Skip cleanup.");
+    return;
+  }
+
+  // 只清理“manifest里且本地确实存在文件”的条目（安全）
+  const exported = manifest.filter((m) => m?.id && m?.src && fs.existsSync(m.src));
+  const ids = [...new Set(exported.map((m) => String(m.id)))];
+
+  console.log("[cleanup] manifest items=", manifest.length, "exported(existing files)=", ids.length);
+
+  if (!ids.length) {
+    console.log("[cleanup] No exported items found on disk. Skip cleanup.");
+    return;
+  }
+
+  // 只处理 DB 里仍为 approved 的行
+  const rows = [];
+  for (const part of chunk(ids, 200)) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("id,image_path,status")
+      .in("id", part)
+      .eq("status", "approved");
+    if (error) throw error;
+    rows.push(...(data || []));
+  }
+
+  console.log("[cleanup] approved rows found in DB=", rows.length);
+  if (!rows.length) {
+    console.log("[cleanup] Nothing to cleanup in DB.");
+    return;
+  }
+
+  const paths = rows.map((r) => (r.image_path || "").trim()).filter(Boolean);
+
+  // 1) 删 Storage（可选）
+  if (CLEANUP_MODE === "db_and_storage") {
+    console.log("[cleanup] storage objects to remove=", paths.length);
+
+    if (CLEANUP_DRY_RUN) {
+      console.log("[cleanup] DRY_RUN=true, skip storage.remove()");
+    } else {
+      for (const part of chunk(paths, 100)) {
+        try {
+          const { error } = await supabase.storage.from(BUCKET).remove(part);
+          if (error) {
+            if (isObjectNotFoundError(error)) {
+              console.log("[cleanup] storage: object not found (ignored)");
+            } else {
+              throw error;
+            }
+          }
+        } catch (e) {
+          if (isObjectNotFoundError(e)) {
+            console.log("[cleanup] storage: object not found (ignored)");
+          } else {
+            throw e;
+          }
+        }
+      }
+      console.log("[cleanup] storage cleanup done.");
+    }
+  }
+
+  // 2) 删 DB
+  console.log("[cleanup] db rows to remove=", rows.length);
+
+  if (CLEANUP_DRY_RUN) {
+    console.log("[cleanup] DRY_RUN=true, skip DB delete()");
+    return;
+  }
+
+  for (const part of chunk(rows.map((r) => r.id), 200)) {
+    const { error } = await supabase.from(TABLE).delete().in("id", part);
+    if (error) throw error;
+  }
+
+  console.log("[cleanup] db cleanup done.");
 }
 
 async function exportApproved() {
-  // 你之前加过的安全日志：不泄露 key，只打印长度/是否有换行
-  console.log(`[env] url=${SUPABASE_URL ? "***" : ""}`);
-  console.log(`[env] bucket="${BUCKET}" table="${TABLE}"`);
-  console.log(`[env] key_len=${KEY?.length || 0} has_newline=${/\r|\n/.test(KEY || "")}`);
-
   const approved = await listApproved();
   console.log(`approved rows: ${approved.length}`);
 
   ensureDir("assets");
   ensureDir("assets/full");
-  ensureDir(".tmp");
 
-  // ✅ 只有在你开启“会删 DB”的模式下，才需要“保留旧 manifest”
-  // 否则保持你原来的行为：manifest = 仅来自当前 DB 的 approved
-  const keepOldManifest = cleanupDB;
-
-  let manifest = [];
-  if (keepOldManifest) {
-    const existing = readJsonIfExists("assets/manifest.json");
-    if (Array.isArray(existing)) manifest = existing;
-  }
-
-  const manifestMap = new Map();
-  for (const item of manifest) {
-    if (item && item.id) manifestMap.set(item.id, item);
-  }
-
-  const exported = [];
+  const manifest = [];
 
   for (const row of approved) {
-    const imagePath = row.image_path;
+    const imagePath = (row.image_path || "").trim();
     if (!imagePath) continue;
 
     const year = guessYear(row);
@@ -176,7 +248,7 @@ async function exportApproved() {
       console.log(`skip existing: ${outFile}`);
     }
 
-    const entry = {
+    manifest.push({
       id: row.id,
       year,
       category: row.category || "other",
@@ -184,72 +256,26 @@ async function exportApproved() {
       taken_at: row.taken_at || "",
       people: row.people || "",
       src: outFile.replace(/\\/g, "/"),
-    };
-
-    manifestMap.set(entry.id, entry);
-    exported.push({ id: row.id, image_path: imagePath });
+    });
   }
 
-  const nextManifest = Array.from(manifestMap.values());
-
-  nextManifest.sort((a, b) => {
+  manifest.sort((a, b) => {
     if (a.year !== b.year) return String(b.year).localeCompare(String(a.year));
     return String(b.taken_at).localeCompare(String(a.taken_at));
   });
 
-  fs.writeFileSync("assets/manifest.json", JSON.stringify(nextManifest, null, 2), "utf-8");
-  console.log(`wrote assets/manifest.json (${nextManifest.length} items)`);
-
-  // ✅ 给后续 cleanup step 用（不进 git）
-  fs.writeFileSync(".tmp/exported.json", JSON.stringify(exported, null, 2), "utf-8");
-  console.log(`[tmp] wrote .tmp/exported.json (${exported.length} items)`);
-
-  if (cleanupDB || cleanupStorage) {
-    console.log(`[notice] CLEANUP_MODE=${CLEANUP_MODE} -> will cleanup after git push.`);
-  } else {
-    console.log(`[notice] CLEANUP_MODE=${CLEANUP_MODE} -> no cleanup.`);
-  }
-}
-
-async function cleanupAfterPush() {
-  console.log(`[cleanup] mode=${CLEANUP_MODE}`);
-
-  if (!cleanupDB && !cleanupStorage) {
-    console.log("[cleanup] CLEANUP_MODE=none (or empty). Skip cleanup.");
-    return;
-  }
-
-  const exported = readJsonIfExists(".tmp/exported.json");
-  if (!Array.isArray(exported) || exported.length === 0) {
-    console.log("[cleanup] no exported items found. Skip cleanup.");
-    return;
-  }
-
-  const ids = exported.map((x) => x?.id).filter(Boolean);
-  const paths = exported.map((x) => x?.image_path).filter(Boolean);
-
-  console.log(`[cleanup] exported items: ids=${ids.length} paths=${paths.length}`);
-
-  // 先删 Storage（更占空间），再删 DB
-  if (cleanupStorage) {
-    console.log("[cleanup] removing storage objects...");
-    await removeStorageObjects(paths);
-  }
-
-  if (cleanupDB) {
-    console.log("[cleanup] deleting db rows...");
-    await deleteDbRows(ids);
-  }
-
-  console.log("[cleanup] done.");
+  fs.writeFileSync("assets/manifest.json", JSON.stringify(manifest, null, 2), "utf-8");
+  console.log(`wrote assets/manifest.json (${manifest.length} items)`);
 }
 
 async function main() {
-  if (CLEANUP_ONLY) {
-    await cleanupAfterPush();
-    return;
+  if (!CLEANUP_ONLY) {
+    await exportApproved();
+  } else {
+    console.log("[mode] cleanup-only (skip export)");
   }
-  await exportApproved();
+
+  await cleanupFromManifest();
 }
 
 main().catch((e) => {
