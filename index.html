@@ -2,160 +2,247 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>首页｜RENHE-photo</title>
-  <link rel="stylesheet" href="./css/style.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RENHE Photo</title>
+
+  <link rel="stylesheet" href="css/style.css" />
+
+  <style>
+    /* ===== 保持你原来的参数（不动） ===== */
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 14px; }
+    .card{
+      background:#fff;
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:18px 18px;
+      margin:16px 0;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+    .card h2{ margin:0 0 10px 0; font-size:18px; }
+    .muted{ color:#666; }
+    .small{ font-size:14px; line-height:1.65; }
+
+    label{ display:block; margin: 12px 0 6px; font-weight:600; }
+    input, select{
+      width:100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.18);
+      outline:none;
+    }
+    input:focus, select:focus{ border-color:#4f46e5; }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:12px 14px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:700;
+      border:1px solid transparent;
+      user-select:none;
+      cursor:pointer;
+    }
+    .btn-primary{ background:#4f46e5; color:#fff; }
+    .btn-primary:hover{ filter:brightness(0.98); }
+    .btn-outline{
+      background:#fff;
+      border-color: rgba(0,0,0,.16);
+      color:#111827;
+    }
+    .btn-outline:hover{ background:#f7f7f7; }
+
+    .btn-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+
+    .tag{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:#f3f4f6;
+      color:#111827;
+      font-size:12px;
+      margin-right:8px;
+    }
+    .ul-tight{ margin: 10px 0 0 18px; }
+    .ul-tight li{ margin: 6px 0; }
+    .hr{ margin: 18px 0; opacity:.25; }
+
+    .hint{ margin-top: 8px; }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    @media (min-width: 860px){
+      .grid2{ grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ===== 仅新增：首页页眉（对齐你画廊那种风格） ===== */
+    .site-header{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .header-inner{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 12px 14px;
+    }
+    .brand{
+      font-weight: 800;
+      letter-spacing: .2px;
+      color:#111;
+      text-decoration:none;
+    }
+    .nav{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .nav a{
+      color:#111827;
+      text-decoration:none;
+      font-weight:700;
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .nav a:hover{ background:#f3f4f6; }
+    .nav a.active{
+      background:#111;
+      color:#fff;
+    }
+
+    /* ===== 首页排版小增强（不影响你其它页） ===== */
+    .hero h1{
+      margin: 6px 0 10px;
+      font-size: 38px;
+      letter-spacing: .2px;
+    }
+    .hero p{ margin: 0; }
+    .stat-row{
+      margin-top: 12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px;
+      align-items:center;
+    }
+    .stat{
+      display:inline-flex;
+      gap:6px;
+      align-items:center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background:#fff;
+      font-size: 13px;
+      color:#111827;
+    }
+    .stat b{ font-size: 14px; }
+  </style>
 </head>
+
 <body>
   <header class="site-header">
-    <div class="container inner">
-      <a class="brand" href="./index.html"><span class="dot"></span><span>RENHE-photo</span></a>
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html">RENHE Photo</a>
       <nav class="nav">
-        <a class="active" href="./index.html">首页</a>
-        <a href="./gallery.html">画廊</a>
-        <a href="./upload.html">投稿/上传</a>
-        <a href="./admin.html">审核后台</a>
+        <a class="active" href="index.html">首页</a>
+        <a href="gallery.html">画廊</a>
+        <a href="upload.html">投稿/上传</a>
+        <a href="admin.html">审核后台</a>
       </nav>
     </div>
   </header>
 
-  <main class="main">
-    <div class="container">
+  <main class="wrap">
+    <!-- ✅ 顶部 Hero（没有“最新上传/最新上墙”） -->
+    <section class="card hero">
+      <h1>枪姐的摄影画廊</h1>
+      <p class="muted">
+        这里展示任她相关摄影作品。你可以浏览画廊，也可以通过「投稿/上传」提交照片（通过审核后会上墙）。
+      </p>
 
-      <section class="hero">
-        <div class="card pad">
-          <h1>枪姐的摄影画廊</h1>
-          <p class="lead muted">
-            这里展示任她相关摄影作品。你可以浏览画廊，也可以通过「投稿/上传」提交照片（通过审核后会上墙）。
-          </p>
+      <div class="btn-row" style="margin-top:14px;">
+        <a class="btn btn-primary" href="gallery.html">进入画廊 →</a>
+        <a class="btn btn-outline" href="upload.html">投稿/上传</a>
+      </div>
 
-          <div class="actions">
-            <a class="btn primary" href="./gallery.html">进入画廊</a>
-            <a class="btn ghost" href="./upload.html">投稿/上传</a>
-          </div>
+      <!-- 统计：只显示数量，不做“最新上传” -->
+      <div class="stat-row" aria-live="polite">
+        <span class="stat">已上墙：<b id="statTotal">—</b> 张</span>
+        <span class="stat">年份：<b id="statYears">—</b></span>
+        <span class="stat">分类：<b id="statCats">—</b></span>
+        <span class="stat muted small" id="statNote">（统计来自 assets/manifest.json）</span>
+      </div>
+    </section>
 
-          <div class="actions" style="margin-top:10px;">
-            <span class="badge" id="statTotal">已上墙：—</span>
-            <span class="badge" id="statYears">年份：—</span>
-            <span class="badge" id="statCats">分类：—</span>
-          </div>
+    <!-- ✅ 如何上墙 -->
+    <section class="card">
+      <h2>如何上墙</h2>
+      <ol class="ul-tight">
+        <li>投稿/上传：填写信息并上传图片（进入 <b>pending</b>）。</li>
+        <li>审核后台：通过/拒绝投稿（<b>approved</b> 才会被导出）。</li>
+        <li>GitHub Actions 导出：将 approved 的图片导出到 <code>assets/</code> 并生成 <code>manifest.json</code>。</li>
+      </ol>
+
+      <p class="muted small hint">
+        小提示：画廊只读取 <code>assets/manifest.json</code>，不直接依赖数据库展示。
+      </p>
+    </section>
+
+    <!-- ✅ 说明卡片（可选） -->
+    <section class="grid2">
+      <div class="card">
+        <h2>内容规范</h2>
+        <ul class="ul-tight">
+          <li>仅上传你拥有版权或已获授权的照片。</li>
+          <li>建议 JPG/PNG/WebP；单张大小按你上传页限制即可。</li>
+          <li>人物信息可选：不确定就留空或写“无”。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>数据流说明</h2>
+        <div class="small muted">
+          <span class="tag">前台展示</span>
+          <span>只看 <code>assets/manifest.json</code>。</span>
+          <div class="hr"><hr style="opacity:.25;"></div>
+          <span class="tag">审核通过</span>
+          <span>导出后图片进入仓库，之后你可以清理 Supabase 以节省空间（但见下方备注）。</span>
         </div>
-
-        <div class="card pad">
-          <h3>如何上墙</h3>
-          <ol class="steps">
-            <li>投稿/上传：填写信息并上传图片（进入 pending）。</li>
-            <li>审核后台：通过/拒绝投稿（approved 才会上墙）。</li>
-            <li>GitHub Actions 导出：将 approved 的图片导出到 <code>assets/</code> 并生成 manifest。</li>
-          </ol>
-          <p class="muted" style="margin-top:10px;">
-            小提示：画廊只读取 <code>assets/manifest.json</code>，不直接依赖数据库展示。
-          </p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head">
-          <h2>最新上墙</h2>
-          <a class="btn link" href="./gallery.html">查看全部 →</a>
-        </div>
-        <div id="latestGrid" class="grid"></div>
-        <div id="latestEmpty" class="notice muted" style="display:none;">
-          还没有上墙图片。先去审核后台通过一张，再运行导出 workflow。
-        </div>
-      </section>
-
-      <footer>© Zypher</footer>
-    </div>
+      </div>
+    </section>
   </main>
 
+  <footer class="footer">© Zypher</footer>
+
   <script>
-    const MANIFEST = "./assets/manifest.json";
-
-    const latestGrid = document.getElementById("latestGrid");
-    const latestEmpty = document.getElementById("latestEmpty");
-
-    const statTotal = document.getElementById("statTotal");
-    const statYears = document.getElementById("statYears");
-    const statCats  = document.getElementById("statCats");
-
-    function uniq(arr){ return Array.from(new Set(arr)).filter(Boolean); }
-
-    function photoCard(it){
-      const src = it.src || it.full || it.url;
-      const a = document.createElement("a");
-      a.href = "./gallery.html";
-      a.className = "photo-card";
-
-      const img = document.createElement("img");
-      img.loading = "lazy";
-      img.src = src;
-      img.alt = (it.year || "") + " " + (it.category || "");
-
-      const meta = document.createElement("div");
-      meta.className = "photo-meta";
-
-      const row = document.createElement("div");
-      row.className = "row";
-
-      const y = document.createElement("span");
-      y.className = "tag";
-      y.textContent = it.year || "unknown";
-      const c = document.createElement("span");
-      c.className = "tag";
-      c.textContent = it.category || "other";
-      row.appendChild(y); row.appendChild(c);
-
-      const title = document.createElement("div");
-      title.className = "title";
-      title.textContent = (it.people || it.uploader_name || "").trim() || "—";
-
-      const sub = document.createElement("div");
-      sub.className = "sub";
-      sub.textContent = it.taken_at || "";
-
-      meta.appendChild(row);
-      meta.appendChild(title);
-      meta.appendChild(sub);
-
-      a.appendChild(img);
-      a.appendChild(meta);
-      return a;
-    }
-
-    async function init(){
-      try{
-        const res = await fetch(MANIFEST + "?ts=" + Date.now());
-        if (!res.ok) throw new Error("manifest fetch failed: " + res.status);
+    // 只做统计：不做“最新上传/最新上墙”
+    (async () => {
+      try {
+        const res = await fetch("assets/manifest.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("manifest load failed");
         const items = await res.json();
 
-        // stats
-        statTotal.textContent = "已上墙：" + items.length;
-        statYears.textContent = "年份：" + uniq(items.map(x => x.year)).length;
-        statCats.textContent = "分类：" + uniq(items.map(x => x.category || "other")).length;
+        const total = items.length;
+        const years = new Set(items.map(x => String(x.year || "unknown")));
+        const cats = new Set(items.map(x => String(x.category || "other")));
 
-        const latest = items.slice(0, 8); // manifest 已经按新->旧排序的话，直接切
-        latestGrid.innerHTML = "";
-        if (!latest.length){
-          latestEmpty.style.display = "block";
-          return;
-        }
-        latestEmpty.style.display = "none";
-
-        const frag = document.createDocumentFragment();
-        latest.forEach(it => {
-          const src = it.src || it.full || it.url;
-          if (!src) return;
-          frag.appendChild(photoCard(it));
-        });
-        latestGrid.appendChild(frag);
-      }catch(e){
-        console.error(e);
-        latestEmpty.style.display = "block";
+        document.getElementById("statTotal").textContent = total;
+        document.getElementById("statYears").textContent = years.size;
+        document.getElementById("statCats").textContent = cats.size;
+      } catch (e) {
+        document.getElementById("statNote").textContent = "（未找到 manifest，先去跑一次导出工作流）";
       }
-    }
-
-    init();
+    })();
   </script>
 </body>
 </html>
