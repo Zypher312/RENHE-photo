@@ -3,7 +3,7 @@ name: Export approved photos to assets
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/30 * * * *"  # 每30分钟跑一次；不想自动就删掉这段
 
 permissions:
   contents: write
@@ -29,7 +29,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
           SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
-          CLEANUP_MODE: ${{ secrets.CLEANUP_MODE }}
         run: node scripts/export-approved.mjs
 
       - name: Commit changes
@@ -44,12 +43,14 @@ jobs:
           git commit -m "chore: export approved photos to assets"
           git push
 
-      # ✅ 新增：导出并 push 成功后，再清理 Supabase（可选开关）
+      # ✅ 可选：导出并 push 成功后，再清理 Supabase（由 CLEANUP_MODE 控制）
       - name: Cleanup Supabase (optional)
+        if: ${{ secrets.CLEANUP_MODE != '' && secrets.CLEANUP_MODE != 'none' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
           SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
           CLEANUP_MODE: ${{ secrets.CLEANUP_MODE }}
-        run: node scripts/export-approved.mjs --cleanup
+          CLEANUP_DRY_RUN: ${{ secrets.CLEANUP_DRY_RUN }}
+        run: node scripts/export-approved.mjs --cleanup-only
