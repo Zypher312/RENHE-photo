@@ -103,65 +103,183 @@
     @media (min-width: 860px){
       .grid2{ grid-template-columns: 1fr 1fr; }
     }
+
+    /* ===== 新增：与画廊统一的页眉风格 ===== */
+    .site-header{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .header-inner{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 12px 14px;
+    }
+    .brand{
+      font-weight: 800;
+      letter-spacing: .2px;
+      color:#111;
+      text-decoration:none;
+      white-space: nowrap;
+    }
+    .nav{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .nav a{
+      color:#111827;
+      text-decoration:none;
+      font-weight:700;
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .nav a:hover{ background:#f3f4f6; }
+    .nav a.active{
+      background:#111;
+      color:#fff;
+    }
+
+    /* ===== 新增：页面顶端 Hero ===== */
+    .hero{
+      margin-top: 16px;
+      padding: 18px 18px;
+      background: linear-gradient(180deg, rgba(79,70,229,.10), rgba(255,255,255,1) 60%);
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 14px;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+    .hero h1{
+      margin: 4px 0 10px;
+      font-size: 36px;
+      letter-spacing: .2px;
+    }
+    .hero p{ margin: 0; }
+
+    /* ===== 新增：表单区两栏布局（不改表单内容） ===== */
+    .layout{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (min-width: 900px){
+      .layout{ grid-template-columns: 1.35fr .65fr; }
+    }
+    .sticky-aside{
+      position: sticky;
+      top: 78px; /* 给 sticky header 让位 */
+    }
+
+    /* 小细节：文件输入更像画廊风 */
+    input[type="file"]{
+      padding: 10px 12px;
+      background:#fff;
+    }
   </style>
 </head>
 
 <body>
-  <header>
-    <nav>
-      <a href="index.html">首页</a>
-      <a href="gallery.html">画廊</a>
-      <a href="upload.html">投稿/上传</a>
-      <a href="admin.html">审核后台</a>
-    </nav>
+  <!-- ✅ 统一页眉 -->
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html">RENHE Photo</a>
+      <nav class="nav">
+        <a href="index.html">首页</a>
+        <a href="gallery.html">画廊</a>
+        <a class="active" href="upload.html">投稿/上传</a>
+        <a href="admin.html">审核后台</a>
+      </nav>
+    </div>
   </header>
 
   <main class="wrap">
-    <h1>投稿/上传</h1>
-    <p class="muted">欢迎提交照片。所有投稿都会先进入审核队列，通过后才会展示在画廊。</p>
+    <!-- ✅ 顶部说明：更像画廊那套 -->
+    <section class="hero">
+      <h1>投稿/上传</h1>
+      <p class="muted">
+        欢迎提交照片。所有投稿会先进入审核队列，通过后才会展示在画廊。
+      </p>
+    </section>
 
-    <div class="card">
-      <h2>开始投稿</h2>
+    <!-- ✅ 表单 + 右侧提示，两栏（大屏） -->
+    <section class="layout">
+      <!-- 左：表单（内容不动） -->
+      <div class="card">
+        <h2>开始投稿</h2>
 
-      <form id="uploadForm" novalidate>
-        <label>图片上传者（必填）</label>
-        <input name="uploader_name" required maxlength="50" placeholder="你的名字/昵称" />
+        <form id="uploadForm" novalidate>
+          <label>图片上传者（必填）</label>
+          <input name="uploader_name" required maxlength="50" placeholder="你的名字/昵称" />
 
-        <label>拍摄日期（必填）</label>
-        <input name="taken_at" type="date" required />
+          <label>拍摄日期（必填）</label>
+          <input name="taken_at" type="date" required />
 
-        <label>图片涉及人物（可选）</label>
-        <input name="people" maxlength="100" placeholder="例如：A选手/教练/全队/无" />
+          <label>图片涉及人物（可选）</label>
+          <input name="people" maxlength="100" placeholder="例如：A选手/教练/全队/无" />
 
-        <label>内容分类（必填）</label>
-        <select name="category" required>
-          <option value="比赛实况">比赛实况</option>
-          <option value="训练物料">训练物料</option>
-          <option value="路透花絮">路透花絮</option>
-          <option value="饭制同人">饭制同人</option>
-        </select>
+          <label>内容分类（必填）</label>
+          <select name="category" required>
+            <option value="比赛实况">比赛实况</option>
+            <option value="训练物料">训练物料</option>
+            <option value="路透花絮">路透花絮</option>
+            <option value="饭制同人">饭制同人</option>
+          </select>
 
-        <label>选择图片（必填：jpg/png/webp，≤50MB/张，可多选）</label>
-        <input id="photoInput" name="photo" type="file"
-               accept="image/jpeg,image/png,image/webp"
-               multiple required />
+          <label>选择图片（必填：jpg/png/webp，≤50MB/张，可多选）</label>
+          <input id="photoInput" name="photo" type="file"
+                 accept="image/jpeg,image/png,image/webp"
+                 multiple required />
 
-        <div class="btn-row">
-          <button class="btn btn-primary" id="submitBtn" type="button">提交审核 →</button>
-          <a class="btn btn-outline" href="gallery.html">返回画廊</a>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="submitBtn" type="button">提交审核 →</button>
+            <a class="btn btn-outline" href="gallery.html">返回画廊</a>
+          </div>
+
+          <div id="msg">（等待脚本加载…如果这里一直不变，说明 js 没加载成功）</div>
+
+          <!-- ✅ upload.js 的日志输出区（不动） -->
+          <pre id="log" class="muted small"></pre>
+
+          <p class="muted small hint">
+            提交后会先进入 <b>pending</b> 队列。管理员审核通过后才会在画廊显示。
+          </p>
+        </form>
+      </div>
+
+      <!-- 右：提示卡片（不影响功能，纯文案/布局） -->
+      <aside class="sticky-aside">
+        <div class="card">
+          <h2>提交前检查</h2>
+          <ul class="ul-tight">
+            <li><b>上传者</b>：建议用可识别昵称（便于画廊搜索）。</li>
+            <li><b>日期</b>：尽量填拍摄日期（不是上传日期）。</li>
+            <li><b>人物</b>：不确定可留空或写“无”。</li>
+            <li><b>分类</b>：决定后续归档目录。</li>
+          </ul>
         </div>
 
-        <div id="msg">（等待脚本加载…如果这里一直不变，说明 js 没加载成功）</div>
+        <div class="card">
+          <h2>更好归档的小建议</h2>
+          <div class="small muted">
+            <span class="tag">文件名建议</span>
+            <span>可以把信息写进文件名，比如：</span><br />
+            <code>2026-02-02_上传者_内容类型_人物_001.jpg</code>
+            <div class="hr"><hr style="opacity:.25;"></div>
+            <span class="tag">多图</span>
+            <span>同一次选择的多张图片，会共享同一组元数据（上传者/日期/分类/人物）。</span>
+          </div>
+        </div>
+      </aside>
+    </section>
 
-        <!-- ✅ 新增：upload.js 的日志输出区 -->
-        <pre id="log" class="muted small"></pre>
-
-        <p class="muted small hint">
-          提交后会先进入 <b>pending</b> 队列。管理员审核通过后才会在画廊显示。
-        </p>
-      </form>
-    </div>
-
+    <!-- ✅ 底部规则：保留原内容（只是位置/版式更协调） -->
     <div class="grid2">
       <div class="card">
         <h2>投稿规则</h2>
@@ -173,15 +291,15 @@
         </ul>
       </div>
 
+      <!-- 右侧这张卡你原来有，我保留，但现在已被 aside 占用了，所以这里给一个补充说明 -->
       <div class="card">
-        <h2>更好归档的小建议</h2>
+        <h2>审核与展示</h2>
         <div class="small muted">
-          <span class="tag">文件名建议</span>
-          <span>可以把信息写进文件名，比如：</span><br />
-          <code>2026-02-02_上传者_内容类型_人物_001.jpg</code>
+          <span class="tag">pending</span>
+          <span>提交后先进入待审核队列。</span>
           <div class="hr"><hr style="opacity:.25;"></div>
-          <span class="tag">多图</span>
-          <span>同一次选择的多张图片，会共享同一组元数据（上传者/日期/分类/人物）。</span>
+          <span class="tag">approved</span>
+          <span>通过后会被导出进 <code>assets/</code> 并在画廊展示。</span>
         </div>
       </div>
     </div>
