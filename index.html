@@ -1,26 +1,161 @@
 <!doctype html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Double-Pistol's Gallery 小手枪画廊进行中</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title>首页｜RENHE-photo</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
-<header>
-  <nav>
-    <a href="index.html">首页</a>
-    <a href="gallery.html">画廊</a>
-    <a href="upload.html">投稿/上传</a>
-  </nav>
-</header>
+  <header class="site-header">
+    <div class="container inner">
+      <a class="brand" href="./index.html"><span class="dot"></span><span>RENHE-photo</span></a>
+      <nav class="nav">
+        <a class="active" href="./index.html">首页</a>
+        <a href="./gallery.html">画廊</a>
+        <a href="./upload.html">投稿/上传</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+    </div>
+  </header>
 
-<main>
-  <h1>枪姐的摄影画廊</h1>
-  <p>这里展示任何组合相关摄影作品。欢迎浏览，也欢迎通过“投稿/上传”提交照片（我会审核后再展示）。</p>
-  <p><a href="gallery.html">进入画廊 →</a></p>
-</main>
+  <main class="main">
+    <div class="container">
 
-<div class="footer">© Zypher</div>
+      <section class="hero">
+        <div class="card pad">
+          <h1>枪姐的摄影画廊</h1>
+          <p class="lead muted">
+            这里展示任她相关摄影作品。你可以浏览画廊，也可以通过「投稿/上传」提交照片（通过审核后会上墙）。
+          </p>
+
+          <div class="actions">
+            <a class="btn primary" href="./gallery.html">进入画廊</a>
+            <a class="btn ghost" href="./upload.html">投稿/上传</a>
+          </div>
+
+          <div class="actions" style="margin-top:10px;">
+            <span class="badge" id="statTotal">已上墙：—</span>
+            <span class="badge" id="statYears">年份：—</span>
+            <span class="badge" id="statCats">分类：—</span>
+          </div>
+        </div>
+
+        <div class="card pad">
+          <h3>如何上墙</h3>
+          <ol class="steps">
+            <li>投稿/上传：填写信息并上传图片（进入 pending）。</li>
+            <li>审核后台：通过/拒绝投稿（approved 才会上墙）。</li>
+            <li>GitHub Actions 导出：将 approved 的图片导出到 <code>assets/</code> 并生成 manifest。</li>
+          </ol>
+          <p class="muted" style="margin-top:10px;">
+            小提示：画廊只读取 <code>assets/manifest.json</code>，不直接依赖数据库展示。
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>最新上墙</h2>
+          <a class="btn link" href="./gallery.html">查看全部 →</a>
+        </div>
+        <div id="latestGrid" class="grid"></div>
+        <div id="latestEmpty" class="notice muted" style="display:none;">
+          还没有上墙图片。先去审核后台通过一张，再运行导出 workflow。
+        </div>
+      </section>
+
+      <footer>© Zypher</footer>
+    </div>
+  </main>
+
+  <script>
+    const MANIFEST = "./assets/manifest.json";
+
+    const latestGrid = document.getElementById("latestGrid");
+    const latestEmpty = document.getElementById("latestEmpty");
+
+    const statTotal = document.getElementById("statTotal");
+    const statYears = document.getElementById("statYears");
+    const statCats  = document.getElementById("statCats");
+
+    function uniq(arr){ return Array.from(new Set(arr)).filter(Boolean); }
+
+    function photoCard(it){
+      const src = it.src || it.full || it.url;
+      const a = document.createElement("a");
+      a.href = "./gallery.html";
+      a.className = "photo-card";
+
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.src = src;
+      img.alt = (it.year || "") + " " + (it.category || "");
+
+      const meta = document.createElement("div");
+      meta.className = "photo-meta";
+
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const y = document.createElement("span");
+      y.className = "tag";
+      y.textContent = it.year || "unknown";
+      const c = document.createElement("span");
+      c.className = "tag";
+      c.textContent = it.category || "other";
+      row.appendChild(y); row.appendChild(c);
+
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = (it.people || it.uploader_name || "").trim() || "—";
+
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent = it.taken_at || "";
+
+      meta.appendChild(row);
+      meta.appendChild(title);
+      meta.appendChild(sub);
+
+      a.appendChild(img);
+      a.appendChild(meta);
+      return a;
+    }
+
+    async function init(){
+      try{
+        const res = await fetch(MANIFEST + "?ts=" + Date.now());
+        if (!res.ok) throw new Error("manifest fetch failed: " + res.status);
+        const items = await res.json();
+
+        // stats
+        statTotal.textContent = "已上墙：" + items.length;
+        statYears.textContent = "年份：" + uniq(items.map(x => x.year)).length;
+        statCats.textContent = "分类：" + uniq(items.map(x => x.category || "other")).length;
+
+        const latest = items.slice(0, 8); // manifest 已经按新->旧排序的话，直接切
+        latestGrid.innerHTML = "";
+        if (!latest.length){
+          latestEmpty.style.display = "block";
+          return;
+        }
+        latestEmpty.style.display = "none";
+
+        const frag = document.createDocumentFragment();
+        latest.forEach(it => {
+          const src = it.src || it.full || it.url;
+          if (!src) return;
+          frag.appendChild(photoCard(it));
+        });
+        latestGrid.appendChild(frag);
+      }catch(e){
+        console.error(e);
+        latestEmpty.style.display = "block";
+      }
+    }
+
+    init();
+  </script>
 </body>
 </html>
