@@ -1,56 +1,232 @@
-name: Export approved photos to assets
+import fs from "node:fs";
+import path from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
-on:
-  workflow_dispatch: {}
-  schedule:
-    - cron: "*/30 * * * *"  # 每30分钟跑一次；不想自动就删掉这段
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
+const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+const BUCKET = (process.env.SUPABASE_BUCKET || "photos").trim();
+const TABLE = (process.env.SUPABASE_DB_TABLE || "photos").trim();
 
-permissions:
-  contents: write
+const ARGS = new Set(process.argv.slice(2));
+const CLEANUP_ONLY = ARGS.has("--cleanup-only") || ARGS.has("--cleanup");
 
-jobs:
-  export:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+if (!SUPABASE_URL || !KEY) {
+  console.error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+  process.exit(1);
+}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+// 用 service_role 时，最好把 Authorization 也显式带上（更稳）
+const supabase = createClient(SUPABASE_URL, KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  global: { headers: { Authorization: `Bearer ${KEY}` } },
+});
 
-      - name: Install deps
-        run: npm init -y && npm i @supabase/supabase-js
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
-      - name: Export approved
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-          SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
-        run: node scripts/export-approved.mjs
+function safeSlug(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\-]+/g, "-")
+    .replace(/\-+/g, "-")
+    .replace(/^\-|\-$/g, "");
+}
 
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add assets/manifest.json assets/full || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git commit -m "chore: export approved photos to assets"
-          git push
+function guessYear(row) {
+  if (row.year) return row.year;
+  if (row.taken_at) return new Date(row.taken_at).getFullYear();
+  return new Date().getFullYear();
+}
 
-      # ✅ 可选：导出并 push 成功后，再清理 Supabase（由 CLEANUP_MODE 控制）
-      - name: Cleanup Supabase (optional)
-        if: ${{ secrets.CLEANUP_MODE != '' && secrets.CLEANUP_MODE != 'none' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-          SUPABASE_DB_TABLE: ${{ secrets.SUPABASE_DB_TABLE }}
-          CLEANUP_MODE: ${{ secrets.CLEANUP_MODE }}
-          CLEANUP_DRY_RUN: ${{ secrets.CLEANUP_DRY_RUN }}
-        run: node scripts/export-approved.mjs --cleanup-only
+function getExtFromPath(p) {
+  const ext = path.extname(p || "").toLowerCase().replace(".", "");
+  return ext || "jpg";
+}
+
+async function listApproved() {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("id,image_path,uploader_name,taken_at,people,category,year,status")
+    .eq("status", "approved")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function downloadObjectSigned(objectPath) {
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, 60);
+  if (error) throw error;
+
+  const res = await fetch(data.signedUrl);
+  if (!res.ok) throw new Error(`download failed: ${res.status} ${res.statusText}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+function readManifestIds() {
+  try {
+    const p = path.join("assets", "manifest.json");
+    if (!fs.existsSync(p)) return new Set();
+    const raw = fs.readFileSync(p, "utf-8");
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map((x) => String(x.id)));
+  } catch {
+    return new Set();
+  }
+}
+
+function isTruthy(v) {
+  const s = String(v || "").trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on"].includes(s);
+}
+
+function normalizeMode(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function wantsStorage(mode) {
+  return mode === "storage" || mode === "both" || mode === "all";
+}
+
+function wantsDb(mode) {
+  return mode === "db" || mode === "table" || mode === "database" || mode === "both" || mode === "all";
+}
+
+async function cleanupSupabase() {
+  const mode = normalizeMode(process.env.CLEANUP_MODE);
+  const dryRun = isTruthy(process.env.CLEANUP_DRY_RUN);
+
+  console.log(`[cleanup] mode=${mode || "(empty)"} dry_run=${dryRun}`);
+
+  if (!mode || mode === "none") {
+    console.log("[cleanup] CLEANUP_MODE is empty/none. Skip cleanup.");
+    return;
+  }
+
+  // ✅ 安全策略：只清理 manifest 里已经存在的 id（也就是“已导出过/已进入 assets 的”）
+  const manifestIds = readManifestIds();
+  console.log(`[cleanup] manifest ids: ${manifestIds.size}`);
+  if (manifestIds.size === 0) {
+    console.log("[cleanup] manifest is empty. Skip cleanup to avoid accidental deletion.");
+    return;
+  }
+
+  const approved = await listApproved();
+  const targets = approved.filter((r) => manifestIds.has(String(r.id)));
+  console.log(`[cleanup] approved=${approved.length}, targets(in manifest)=${targets.length}`);
+
+  if (targets.length === 0) {
+    console.log("[cleanup] No targets to cleanup.");
+    return;
+  }
+
+  if (wantsStorage(mode)) {
+    const paths = targets.map((r) => r.image_path).filter(Boolean);
+    console.log(`[cleanup] storage objects to remove: ${paths.length}`);
+
+    const batchSize = 100;
+    for (let i = 0; i < paths.length; i += batchSize) {
+      const batch = paths.slice(i, i + batchSize);
+      if (dryRun) {
+        console.log(`[cleanup][dry-run] remove storage batch(${batch.length})`);
+        continue;
+      }
+      const { data, error } = await supabase.storage.from(BUCKET).remove(batch);
+      if (error) {
+        console.error("[cleanup] storage remove error:", error);
+        // 不直接 throw：避免“已不存在/部分失败”导致整个导出流程报废
+      } else {
+        console.log(`[cleanup] storage removed: ${data?.length ?? 0}/${batch.length}`);
+      }
+    }
+  }
+
+  if (wantsDb(mode)) {
+    const ids = targets.map((r) => r.id);
+    console.log(`[cleanup] db rows to delete: ${ids.length}`);
+
+    const batchSize = 200;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      if (dryRun) {
+        console.log(`[cleanup][dry-run] delete db batch(${batch.length})`);
+        continue;
+      }
+      const { error } = await supabase.from(TABLE).delete().in("id", batch);
+      if (error) {
+        console.error("[cleanup] db delete error:", error);
+        throw error; // db 删除失败建议直接失败，避免“删了一半”
+      } else {
+        console.log(`[cleanup] db deleted batch(${batch.length})`);
+      }
+    }
+  }
+
+  console.log("[cleanup] done.");
+}
+
+async function exportApproved() {
+  ensureDir("assets");
+  ensureDir("assets/full");
+
+  const rows = await listApproved();
+  console.log(`approved rows: ${rows.length}`);
+
+  // 读取现有 manifest
+  const manifestPath = path.join("assets", "manifest.json");
+  let manifest = [];
+  if (fs.existsSync(manifestPath)) {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  }
+
+  const existingIds = new Set(manifest.map((x) => x.id));
+
+  for (const row of rows) {
+    if (existingIds.has(row.id)) continue;
+
+    const year = guessYear(row);
+    const categorySlug = safeSlug(row.category || "other") || "other";
+    const ext = getExtFromPath(row.image_path);
+
+    const outDir = path.join("assets", "full", String(year), categorySlug);
+    ensureDir(outDir);
+
+    const outFile = path.join(outDir, `${row.id}.${ext}`);
+
+    console.log(`download: ${row.image_path} -> ${outFile}`);
+    const buf = await downloadObjectSigned(row.image_path);
+    fs.writeFileSync(outFile, buf);
+
+    manifest.push({
+      id: row.id,
+      year,
+      category: row.category || "other",
+      uploader_name: row.uploader_name || "",
+      taken_at: row.taken_at || null,
+      people: row.people || null,
+      src: outFile.replace(/\\/g, "/"),
+    });
+  }
+
+  // 排序 & 写回
+  manifest.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+  console.log(`manifest updated: ${manifestPath} (total: ${manifest.length})`);
+}
+
+async function main() {
+  if (CLEANUP_ONLY) {
+    await cleanupSupabase();
+    return;
+  }
+  await exportApproved();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
