@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>小论坛</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+  <header>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="gallery.html">画廊</a>
+      <a href="upload.html">投稿/上传</a>
+      <a href="forum.html">小论坛</a>
+      <a href="admin.html">审核后台</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <h1>小论坛</h1>
+    <p class="muted">输入“通行证”后才能进入。</p>
+
+    <div id="loginCard" class="card">
+      <label>通行证</label>
+      <input id="pass" type="password" placeholder="请输入统一通行证" />
+      <div style="margin-top:12px;">
+        <button id="btnLogin" class="btn">进入论坛</button>
+      </div>
+      <div id="loginMsg" class="msg muted small"></div>
+    </div>
+
+    <div id="forumCard" class="card hidden">
+      <div class="row" style="align-items:center;">
+        <div class="muted small">已进入论坛</div>
+        <div class="spacer"></div>
+        <button id="btnLogout" class="btn btn-outline">退出</button>
+      </div>
+
+      <div id="topicTabs" class="row" style="margin-top:12px; gap:10px; flex-wrap:wrap;"></div>
+
+      <div class="row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+          <label>昵称（可选）</label>
+          <input id="nickname" placeholder="比如：Zypher" />
+        </div>
+        <div class="spacer"></div>
+        <div>
+          <label>日期</label>
+          <input id="day" type="date" />
+        </div>
+      </div>
+
+      <div id="list" style="margin-top:14px;"></div>
+
+      <div style="margin-top:14px;">
+        <label>发言</label>
+        <textarea id="content" rows="3" style="width:100%; box-sizing:border-box; border-radius:12px; padding:10px 12px;"></textarea>
+        <div class="row" style="margin-top:10px;">
+          <button id="btnSend" class="btn btn-ok">发送</button>
+          <div id="sendMsg" class="msg muted small"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">© Zypher</footer>
+
+  <script type="module" src="js/forum.js"></script>
+</body>
+</html>
