@@ -1,65 +1,17 @@
 [
   {
-    "id": "abefdafa-640d-4538-bc3a-c2a5a3c38c22",
-    "year": "2026",
-    "category": "比赛实况",
-    "uploader_name": "Zypher",
-    "taken_at": "2026-02-03",
-    "people": "任翔宇何济霆",
-    "src": "assets/full/2026/other/abefdafa-640d-4538-bc3a-c2a5a3c38c22.jpg"
+    "full": "assets/full/2026/other/abefdafa-640d-4538-bc3a-c2a5a3c38c22.jpg",
+    "thumb": "assets/thumbs/2026/other/abefdafa-640d-4538-bc3a-c2a5a3c38c22.jpg",
+    "title": "abefdafa 640d 4538 bc3a c2a5a3c38c22"
   },
   {
-    "id": "e943744f-3190-450b-a040-8d6c1e0b8b41",
-    "year": "2026",
-    "category": "比赛实况",
-    "uploader_name": "Zypher",
-    "taken_at": "2026-02-07",
-    "people": "任翔宇",
-    "src": "assets/full/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg"
+    "full": "assets/full/2026/other/c21a9d1b-135d-44ac-a4b1-9e490ce77b82.jpg",
+    "thumb": "assets/thumbs/2026/other/c21a9d1b-135d-44ac-a4b1-9e490ce77b82.jpg",
+    "title": "c21a9d1b 135d 44ac a4b1 9e490ce77b82"
   },
   {
-    "id": "4ca107e6-da0d-4d0e-8646-21878dd70e94",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/4ca107e6-da0d-4d0e-8646-21878dd70e94.jpg"
-  },
-  {
-    "id": "635f2f48-8e0f-4cb6-837e-1682eb365fa0",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/635f2f48-8e0f-4cb6-837e-1682eb365fa0.jpg"
-  },
-  {
-    "id": "6d3980b3-5aba-40e7-a9f3-117259e2a892",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/6d3980b3-5aba-40e7-a9f3-117259e2a892.jpg"
-  },
-  {
-    "id": "9f3b315f-d058-4936-be64-94ed05e37dcb",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/9f3b315f-d058-4936-be64-94ed05e37dcb.jpg"
-  },
-  {
-    "id": "c21a9d1b-135d-44ac-a4b1-9e490ce77b82",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/c21a9d1b-135d-44ac-a4b1-9e490ce77b82.jpg"
+    "full": "assets/full/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg",
+    "thumb": "assets/thumbs/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg",
+    "title": "e943744f 3190 450b a040 8d6c1e0b8b41"
   }
 ]
