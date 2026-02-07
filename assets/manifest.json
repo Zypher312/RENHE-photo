@@ -1,38 +1,17 @@
 [
   {
-    "id": "26e50061-31b7-4176-b1a1-5e1db827c718",
-    "year": "2026",
-    "category": "比赛实况",
-    "uploader_name": "Zypher",
-    "taken_at": "2026-02-07",
-    "people": "任翔宇何济霆",
-    "src": "assets/full/2026/other/26e50061-31b7-4176-b1a1-5e1db827c718.jpg"
+    "full": "assets/full/2026/other/111dc42b-f89a-41ea-99f6-8f54ce95f682.jpg",
+    "thumb": "assets/thumbs/2026/other/111dc42b-f89a-41ea-99f6-8f54ce95f682.jpg",
+    "title": "111dc42b f89a 41ea 99f6 8f54ce95f682"
   },
   {
-    "id": "e943744f-3190-450b-a040-8d6c1e0b8b41",
-    "year": "2026",
-    "category": "比赛实况",
-    "uploader_name": "Zypher",
-    "taken_at": "2026-02-07",
-    "people": "任翔宇",
-    "src": "assets/full/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg"
+    "full": "assets/full/2026/other/26e50061-31b7-4176-b1a1-5e1db827c718.jpg",
+    "thumb": "assets/thumbs/2026/other/26e50061-31b7-4176-b1a1-5e1db827c718.jpg",
+    "title": "26e50061 31b7 4176 b1a1 5e1db827c718"
   },
   {
-    "id": "abefdafa-640d-4538-bc3a-c2a5a3c38c22",
-    "year": "2026",
-    "category": "other",
-    "uploader_name": "",
-    "taken_at": "",
-    "people": "",
-    "src": "assets/full/2026/other/abefdafa-640d-4538-bc3a-c2a5a3c38c22.jpg"
-  },
-  {
-    "id": "111dc42b-f89a-41ea-99f6-8f54ce95f682",
-    "year": "2026",
-    "category": "比赛实况",
-    "uploader_name": "Zypher",
-    "taken_at": "2026-02-07",
-    "people": "任翔宇何济霆",
-    "src": "assets/full/2026/other/111dc42b-f89a-41ea-99f6-8f54ce95f682.jpg"
+    "full": "assets/full/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg",
+    "thumb": "assets/thumbs/2026/other/e943744f-3190-450b-a040-8d6c1e0b8b41.jpg",
+    "title": "e943744f 3190 450b a040 8d6c1e0b8b41"
   }
 ]
