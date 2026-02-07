@@ -4,102 +4,306 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>小论坛</title>
+
   <link rel="stylesheet" href="css/style.css" />
+
   <style>
-    /* 不改你原 CSS 的情况下，补一点最基础的样式 */
-    .container{max-width:980px;margin:0 auto;padding:24px}
-    .card{border:1px solid #eee;border-radius:12px;padding:16px;margin:16px 0;background:#fff}
+    /* ====== Layout / 基础 ====== */
+    .container{max-width:1100px;margin:0 auto;padding:0 14px}
+    .hidden{display:none !important}
+    .muted{color:#666}
+    .small{font-size:12px}
+    .msg{margin-top:8px;font-size:14px}
+    .msg.ok{color:#16a34a}
+    .msg.err{color:#dc2626}
+
+    /* ====== Header：与 gallery 同风格（毛玻璃 + 胶囊导航）====== */
+    .site-header{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .header-inner{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 12px 0;
+      gap: 12px;
+    }
+    .brand-link{
+      font-weight: 800;
+      letter-spacing: .2px;
+      color:#111;
+      text-decoration:none;
+      white-space: nowrap;
+    }
+    .nav{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    .nav a{
+      color:#111827;
+      text-decoration:none;
+      font-weight:700;
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .nav a:hover{ background:#f3f4f6; }
+    .nav a.active{
+      background:#111;
+      color:#fff;
+    }
+
+    /* ====== 页面头 ====== */
+    .page-head{
+      margin-top: 16px;
+      padding: 18px 18px;
+      background: linear-gradient(180deg, rgba(79,70,229,.10), rgba(255,255,255,1) 60%);
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 14px;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+    .page-head h1{
+      margin: 4px 0 10px;
+      font-size: 36px;
+      letter-spacing: .2px;
+    }
+
+    /* ====== Card / Row ====== */
+    .card{
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:14px;
+      padding:18px;
+      margin:14px 0;
+      background:#fff;
+      box-shadow: 0 1px 8px rgba(0,0,0,.03);
+    }
+    .card h3{margin:0 0 10px 0;font-size:18px}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
     .row > *{flex:0 0 auto}
-    .full{flex:1 1 auto}
-    .hidden{display:none !important}
-    .msg{margin-top:8px;font-size:14px}
-    .msg.ok{color:#0a7a32}
-    .msg.err{color:#c62828}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-    .tab{padding:6px 10px;border:1px solid #ddd;border-radius:10px;background:#f8f8f8;cursor:pointer}
-    .tab.active{background:#111;color:#fff;border-color:#111}
-    .muted{color:#777}
-    .small{font-size:12px}
-    .msg-item{padding:10px 0;border-bottom:1px dashed #eee}
-    .msg-head{display:flex;gap:10px;align-items:baseline}
-    .msg-body{white-space:pre-wrap;word-break:break-word;margin-top:4px}
-    textarea{width:100%;min-height:110px}
-    input[type="text"],input[type="email"],input[type="password"],input[type="date"]{padding:8px;border:1px solid #ddd;border-radius:10px}
-    button{padding:8px 12px;border:1px solid #ddd;border-radius:10px;background:#f6f6f6;cursor:pointer}
-    button.primary{background:#111;color:#fff;border-color:#111}
+    .full{flex:1 1 260px; min-width: 240px;}
+
+    /* ====== 输入控件（统一圆角/聚焦色）====== */
+    textarea{
+      width:100%;
+      min-height:120px;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:12px;
+      outline:none;
+      background:#fff;
+      white-space:pre-wrap;
+    }
+    textarea:focus{border-color:#4f46e5}
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"]{
+      width:100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:12px;
+      outline:none;
+      background:#fff;
+    }
+    input:focus{border-color:#4f46e5}
+
+    /* ====== 按钮（主按钮紫色，次按钮描边）====== */
+    button{
+      padding:12px 14px;
+      border:1px solid rgba(0,0,0,.16);
+      border-radius:12px;
+      background:#fff;
+      cursor:pointer;
+      font-weight:700;
+    }
+    button:hover{background:#f7f7f7}
+    button.primary{
+      background:#4f46e5;
+      color:#fff;
+      border-color:#4f46e5;
+    }
+    button.primary:hover{filter:brightness(.98)}
+
+    /* ====== Tabs：胶囊风格 ====== */
+    .tabs{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin: 4px 0 10px;
+    }
+    .tab{
+      padding:8px 12px;
+      border:1px solid rgba(0,0,0,.16);
+      border-radius:999px;
+      background:#fff;
+      cursor:pointer;
+      font-weight:700;
+      color:#111827;
+    }
+    .tab:hover{ background:#f7f7f7; }
+    .tab.active{
+      background:#111;
+      color:#fff;
+      border-color:#111;
+    }
+
+    /* ====== Forum 顶部工具条布局 ====== */
+    .forum-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .whoami{
+      padding: 10px 12px;
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 12px;
+      background:#f8fafc;
+      white-space: nowrap;
+      height: fit-content;
+    }
+
+    /* ====== 消息列表：更清晰的分隔 ====== */
+    .msg-item{
+      padding: 12px 0;
+      border-bottom: 1px dashed rgba(0,0,0,.10);
+    }
+    .msg-head{
+      display:flex;
+      gap:10px;
+      align-items:baseline;
+    }
+    .msg-body{
+      white-space:pre-wrap;
+      word-break:break-word;
+      margin-top:6px;
+      line-height:1.65;
+    }
+
+    /* 分隔线更轻一点 */
+    .soft-hr{
+      border:none;
+      border-top:1px solid rgba(0,0,0,.08);
+      margin:14px 0;
+    }
+
+    /* Footer */
+    .footer{
+      margin-top: 30px;
+      border-top: 1px solid rgba(0,0,0,.06);
+      background:#fff;
+    }
+    .footer .container{
+      padding: 18px 14px;
+      color:#6b7280;
+      font-size: 14px;
+    }
+
+    /* 小屏优化 */
+    @media (max-width: 640px){
+      .page-head h1{font-size:30px}
+      .full{min-width: 100%;}
+      .whoami{white-space: normal;}
+    }
   </style>
 </head>
 
 <body>
-  <!-- 顶部导航（你已有就按你自己的来） -->
-  <div class="container">
-    <div class="muted small">
-      <a href="index.html">首页</a> |
-      <a href="gallery.html">画廊</a> |
-      <a href="upload.html">投稿/上传</a> |
-      <b>小论坛</b> |
-      <a href="admin.html">审核后台</a>
+  <!-- ✅ 顶部导航：改为和 gallery 一样（仅外观） -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a class="brand-link" href="index.html">RENHE Photo</a>
+      </div>
+      <nav class="nav">
+        <a href="index.html">首页</a>
+        <a href="gallery.html">画廊</a>
+        <a href="upload.html">投稿/上传</a>
+        <a class="active" href="forum.html">小论坛</a>
+        <a href="admin.html">审核后台</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <h1>小论坛</h1>
+      <p class="muted">需要账号 + 密码登录后才能进入。只支持发文字（含 emoji/颜文字）。</p>
     </div>
 
-    <h1>小论坛</h1>
-    <p class="muted">需要账号 + 密码登录后才能进入。只支持发文字（含 emoji/颜文字）。</p>
-
-    <!-- 登录卡片 -->
+    <!-- 登录卡片（结构/ID 不动） -->
     <div class="card" id="gateCard">
       <h3>登录</h3>
+
       <div class="row">
         <div class="full">
           <div class="muted small">邮箱</div>
-          <input id="email" type="email" placeholder="输入账号" style="width:100%" />
+          <input id="email" type="email" placeholder="输入账号" />
         </div>
         <div class="full">
           <div class="muted small">密码</div>
-          <input id="password" type="password" placeholder="输入密码" style="width:100%" />
+          <input id="password" type="password" placeholder="输入密码" />
         </div>
       </div>
-      <div class="row" style="margin-top:10px">
+
+      <div class="row" style="margin-top:12px">
         <button class="primary" id="btnEnter">进入论坛</button>
         <button id="btnExit" class="hidden">退出</button>
         <div id="gateMsg" class="msg"></div>
       </div>
     </div>
 
-    <!-- 论坛区域（未登录时隐藏） -->
+    <!-- 论坛区域（未登录时隐藏；结构/ID 不动） -->
     <div class="card hidden" id="forumArea">
-      <div class="row" style="justify-content:space-between">
+      <div class="forum-top">
         <div>
           <div class="tabs" id="topicTabs"></div>
+
           <div class="row">
-            <div>
+            <div class="full" style="max-width:360px">
               <div class="muted small">昵称（可选）</div>
               <input id="nickname" type="text" placeholder="例如：Zypher" />
             </div>
-            <div>
+            <div class="full" style="max-width:260px">
               <div class="muted small">日期</div>
               <input id="dayPicker" type="date" />
             </div>
           </div>
         </div>
-        <div class="muted small" id="whoami"></div>
+
+        <div class="muted small whoami" id="whoami"></div>
       </div>
 
-      <hr style="border:none;border-top:1px solid #eee;margin:14px 0">
+      <hr class="soft-hr">
 
       <div id="msgList"></div>
 
-      <hr style="border:none;border-top:1px solid #eee;margin:14px 0">
+      <hr class="soft-hr">
 
       <h3>发言</h3>
       <textarea id="msgText" placeholder="说点什么…（支持 emoji/颜文字）"></textarea>
-      <div class="row" style="margin-top:10px">
+
+      <div class="row" style="margin-top:12px">
         <button class="primary" id="btnSend">发送</button>
         <div class="muted small">提示：尽量短一点更省数据库。</div>
       </div>
     </div>
+  </main>
 
-    <div class="muted small" style="margin-top:24px">© Zypher</div>
-  </div>
+  <footer class="footer">
+    <div class="container">© Zypher</div>
+  </footer>
 
   <script type="module" src="js/forum.js"></script>
 </body>
